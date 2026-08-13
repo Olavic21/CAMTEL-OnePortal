@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { MessageCircle, X, Send } from 'lucide-react';
+import { X, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { httpClient } from '@/shared/lib/axios';
+import { OnePortalAILogo } from '@/shared/components/OnePortalAILogo';
 
 interface ChatMessage {
   id: number;
@@ -52,9 +53,13 @@ export function ChatbotWidget() {
             exit={{ opacity: 0, y: 12 }}
             className="mb-3 flex h-96 w-80 flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
           >
-            <div className="flex items-center justify-between bg-primary px-4 py-3 text-white">
-              <p className="text-sm font-semibold">OnePortal IA</p>
-              <button onClick={() => setIsOpen(false)} aria-label="Fermer l'assistant">
+            <div className="flex items-center justify-between bg-gradient-to-r from-[#0B2D5C] via-[#1E5FA8] to-[#3B82D9] px-4 py-3">
+              <OnePortalAILogo variant="header" inverted />
+              <button
+                onClick={() => setIsOpen(false)}
+                aria-label="Fermer l'assistant OnePortal AI"
+                className="rounded-lg p-1 text-white/90 transition-colors hover:bg-white/10"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -63,7 +68,9 @@ export function ChatbotWidget() {
                 <div
                   key={m.id}
                   className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                    m.role === 'user' ? 'ml-auto bg-primary text-white' : 'bg-neutral-100 text-neutral-800'
+                    m.role === 'user'
+                      ? 'ml-auto bg-gradient-to-br from-[#1E5FA8] to-[#3B82D9] text-white'
+                      : 'bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-100'
                   }`}
                 >
                   {m.text}
@@ -81,14 +88,14 @@ export function ChatbotWidget() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Posez votre question..."
-                className="flex-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-primary dark:border-neutral-800"
+                className="flex-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-[#1E5FA8] dark:border-neutral-800 dark:bg-neutral-950"
                 aria-label="Votre message"
               />
               <button
                 type="submit"
                 disabled={isSending}
                 aria-label="Envoyer"
-                className="rounded-lg bg-primary p-2 text-white disabled:opacity-50"
+                className="rounded-lg bg-gradient-to-br from-[#1E5FA8] to-[#3B82D9] p-2 text-white disabled:opacity-50"
               >
                 <Send className="h-4 w-4" />
               </button>
@@ -99,10 +106,10 @@ export function ChatbotWidget() {
 
       <button
         onClick={() => setIsOpen((v) => !v)}
-        aria-label="Ouvrir l'assistant CAMTEL"
-        className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-lg hover:bg-primary-600"
+        aria-label="Ouvrir l'assistant OnePortal AI"
+        className="flex h-14 w-14 items-center justify-center rounded-2xl shadow-lg transition-transform hover:scale-105"
       >
-        <MessageCircle className="h-5 w-5" />
+        <OnePortalAILogo variant="icon" className="h-14 w-14 rounded-2xl shadow-lg" />
       </button>
     </div>
   );

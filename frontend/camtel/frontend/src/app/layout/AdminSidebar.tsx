@@ -3,6 +3,7 @@ import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { LayoutDashboard, Package, FolderTree, Newspaper, Tag, Image as ImageIcon, Mail, History, Users, Bell, LogOut } from 'lucide-react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { Logo } from '@/shared/components/Logo';
 import type { Permission } from '@/features/auth/permissions';
 
 // Sidebar de navigation par module (section 11.4). Chaque entree n'apparait
@@ -28,10 +29,8 @@ export function AdminSidebar() {
 
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-      <div className="flex items-center gap-2 border-b border-neutral-200 px-5 py-5 dark:border-neutral-800">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm text-white">
-          C
-        </span>
+      <div className="flex items-center gap-2.5 border-b border-neutral-200 px-5 py-5 dark:border-neutral-800">
+        <Logo variant="icon" to="/admin" />
         <span className="font-bold text-neutral-900 dark:text-neutral-100">{t('admin.brand')}</span>
       </div>
 

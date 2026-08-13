@@ -1,172 +1,146 @@
 # DevOps et déploiement CAMTEL OnePortal
 
-## 1. Objectif
+## 1. Stack
 
-Cette documentation décrit les étapes de base DevOps nécessaires pour faire passer le projet de l’environnement local vers l’environnement de recette et de production.
+| Composant | Technologie |
+|---|---|
+| Backend | Python 3.12, Gunicorn |
+| Frontend | Vite → Nginx |
+| Base | PostgreSQL 16 |
+| Proxy | Nginx (port 8080) |
+| CI/CD | GitHub Actions |
 
-## 2. Environnement de développement
-
-### Stack actuelle
-
-- Python + Django
-- Django REST Framework
-- SQLite pour le développement local
-- JWT pour l’authentification API
-- Swagger/OpenAPI via `drf-spectacular`
-
-### Commandes de base
+## 2. Développement local (Docker)
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate   # Linux/macOS
-.\.venv\Scripts\Activate.ps1  # Windows PowerShell
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py seed_data
-python manage.py runserver
+docker compose up --build
 ```
 
-## 3. Variables d’environnement
+Services :
+- **db** : PostgreSQL 16 (port 5432)
+- **backend** : Django/Gunicorn (port 8000)
+- **frontend** : Nginx statique
+- **nginx** : Reverse proxy (port 8080)
 
-Créer un fichier `.env` localement avec des valeurs adaptées.
+Healthchecks configurés sur tous les services.
 
-Exemple :
+## 3. Staging
+
+```bash
+docker compose -f docker-compose.staging.yml up --build
+```
+
+- Port 8081
+- `DJANGO_SETTINGS_MODULE=config.settings.prod`
+- Logs JSON (`LOG_FORMAT=json`)
+- DEBUG=False
+
+## 4. Variables d'environnement
+
+Copier `.env.example` → `.env`. Variables clés :
+
+| Variable | Usage |
+|---|---|
+| `SECRET_KEY` | Clé Django (obligatoire en prod) |
+| `DB_HOST` | Si défini → PostgreSQL, sinon SQLite |
+| `LOG_FORMAT` | `json` ou `text` |
+| `USE_S3_STORAGE` | Stockage objet en production |
+
+## 5. CI/CD (GitHub Actions)
+
+Fichiers :
+- `.github/workflows/ci.yml` — tests SQLite + PostgreSQL + frontend
+- `.github/workflows/deploy.yml` — tests PG + build Docker sur `main`
+
+Jobs CI :
+1. `backend-tests-sqlite`
+2. `backend-tests-postgresql` (service container PG 16)
+3. `frontend-tests` (build + vitest)
+
+## 6. Production PostgreSQL
+
+Le `docker-compose.yml` inclut PostgreSQL. Pour production externe :
 
 ```env
-DJANGO_SETTINGS_MODULE=config.settings.dev
-DEBUG=True
-SECRET_KEY=change-me
-ALLOWED_HOSTS=localhost,127.0.0.1
-DATABASE_URL=sqlite:///db.sqlite3
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+DB_HOST=postgres.production.internal
+DB_NAME=camtel_prod
+DB_USER=camtel_app
+DB_PASSWORD=<secret>
+DB_PORT=5432
 ```
 
-## 4. Conteneurisation
+Migration depuis SQLite :
+1. `pg_dump` ou export fixtures
+2. `python manage.py migrate` sur PostgreSQL
+3. `python manage.py reset_pg_sequences`
+4. Vérifier index full-text (migration auto)
 
-### Dockerfile backend
+## 7. Logs structurés
 
-À ajouter plus tard :
+Configuration dans `config/settings/base.py` :
 
-```dockerfile
-FROM python:3.12-slim
-WORKDIR /app
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-EXPOSE 8000
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
+```python
+LOG_FORMAT=json  # via variable d'environnement
 ```
 
-### docker-compose
-
-À ajouter plus tard :
-
-```yaml
-services:
-  backend:
-    build: ./backend
-    ports:
-      - "8000:8000"
-    environment:
-      DJANGO_SETTINGS_MODULE: config.settings.dev
-  db:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: camtel
-      POSTGRES_USER: camtel
-      POSTGRES_PASSWORD: camtel
-```
-
-## 5. CI/CD
-
-Le pipeline doit au minimum inclure :
-
-- installation des dépendances
-- vérification du lint
-- exécution des tests Django
-- build des images Docker
-- déploiement automatique sur branche `main`
-
-### Exemple GitHub Actions structure
-
-```yaml
-name: CI
-
-on:
-  pull_request:
-  push:
-    branches: [main]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: pip install -r backend/requirements.txt
-      - run: cd backend && python manage.py test
-```
-
-## 6. Production
-
-Pour la production, il faudra :
-
-- passer sur PostgreSQL
-- sécuriser le `SECRET_KEY`
-- définir `DEBUG=False`
-- mettre `ALLOWED_HOSTS` à jour
-- configurer HTTPS / HSTS
-- mettre en place les healthchecks
-- stocker les médias sur un storage compatible S3
-
-## 7. Sauvegarde et restauration
-
-### Sauvegarde base de données
-
-```bash
-pg_dump -U camtel -d camtel > backup.sql
-```
-
-### Restauration
-
-```bash
-psql -U camtel -d camtel < backup.sql
-```
-
-### Sauvegarde des médias
-
-- copier les dossiers de médias vers un stockage objet ou un disque externe
-- conserver la version et la date des sauvegardes
+Utilise `python-json-logger` pour le format JSON en production.
 
 ## 8. Monitoring
 
-À mettre en place progressivement :
+Healthcheck avancé : `GET /api/v1/health/`
 
-- healthcheck API
-- logs structurés JSON
-- alerting sur erreurs 5xx
-- suivi disque/espace de stockage
-- monitoring du temps de réponse API
+```json
+{
+  "status": "ok",
+  "database": "ok",
+  "storage": "ok",
+  "version": "1.0.0"
+}
+```
 
-## 9. Sécurité
+Retourne HTTP 503 si DB ou storage indisponible.
 
-- ne jamais exposer le `SECRET_KEY` en clair
-- utiliser des variables d’environnement
-- activer HTTPS en production
-- limiter l’accès aux endpoints sensibles
-- servir les fichiers statiques via un reverse proxy ou CDN
+Alerting basique : surveiller ce endpoint (uptime monitor, Docker healthcheck).
 
-## 10. Plan de progression recommandé
+## 9. Sauvegarde automatisée
 
-1. Ajouter un `requirements.txt` propre.
-2. Ajouter `.env.example`.
-3. Ajouter Dockerfile + docker-compose.
-4. Brancher la CI GitHub Actions.
-5. Préparer PostgreSQL en production.
-6. Ajouter monitoring et sauvegarde automatique.
+Scripts :
+- `scripts/backup.sh` — dump PostgreSQL + archive médias
+- `scripts/restore.sh` — restauration
 
-## 11. Statut actuel
+Exemple cron :
 
-Le backend est fonctionnel en local, avec modèles, API, JWT et seeding de données initiales validés. Les sections DevOps restent à compléter pour la mise en production.
+```bash
+0 2 * * * BACKUP_DIR=/var/backups/camtel ./scripts/backup.sh
+```
+
+Voir [disaster-recovery.md](disaster-recovery.md) pour RTO/RPO.
+
+## 10. Stockage S3
+
+Production (`config/settings/prod.py`) :
+
+```env
+USE_S3_STORAGE=True
+AWS_STORAGE_BUCKET_NAME=camtel-media
+AWS_S3_ENDPOINT_URL=https://minio.example.com
+```
+
+Compatible MinIO, AWS S3, et autres backends S3.
+
+## 11. Sécurité production
+
+Configuré dans `prod.py` :
+- `SECURE_SSL_REDIRECT`
+- HSTS (31536000s)
+- Cookies sécurisés
+- CORS restreint (configurer via env)
+
+## 12. Déploiement
+
+1. Merger sur `main` → CI déclenchée
+2. Build images : `docker compose build`
+3. Déployer avec `docker-compose.staging.yml` ou orchestrateur (K8s)
+4. Vérifier healthcheck post-déploiement
+
+Placeholder deploy dans `deploy.yml` — remplacer par SSH/kubectl selon l'infra cible.

@@ -4,114 +4,130 @@
 
 - Python 3.12+
 - Git
-- Virtualenv ou venv
-- SQLite pour le développement local
-- navigateur ou outil API tel que Postman/Insomnia
+- SQLite (dev) ou PostgreSQL 16+ (staging/prod)
+- Postman/Insomnia (optionnel)
 
-## 2. Cloner le projet
-
-```bash
-git clone <url-du-repo>
-cd CAMTEL-OnePortal
-```
-
-## 3. Créer l’environnement virtuel
-
-```bash
-python -m venv .venv
-```
-
-Sous Windows PowerShell :
+## 2. Installation
 
 ```powershell
+cd CAMTEL-OnePortal
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-```
-
-## 4. Installer les dépendances
-
-```bash
 pip install -r requirements.txt
-```
-
-Si le projet n’a pas encore de `requirements.txt`, installer au minimum :
-
-```bash
-pip install django djangorestframework djangorestframework-simplejwt django-cors-headers drf-spectacular pillow
-```
-
-## 5. Lancer le backend
-
-Depuis le dossier backend :
-
-```bash
 cd backend
 python manage.py migrate
 python manage.py seed_data
 python manage.py runserver
 ```
 
-L’API sera disponible sur :
+## 3. Endpoints principaux
 
-- `http://127.0.0.1:8000/api/`
-- `http://127.0.0.1:8000/api/docs/`
-- `http://127.0.0.1:8000/api/schema/`
+| URL | Description |
+|---|---|
+| `http://127.0.0.1:8000/api/v1/` | API v1 |
+| `http://127.0.0.1:8000/api/docs/` | Swagger UI |
+| `http://127.0.0.1:8000/api/v1/health/` | Healthcheck (DB + storage) |
+| `http://127.0.0.1:8000/api/v1/auth/login/` | Connexion JWT |
 
-## 6. Authentification JWT
-
-Les endpoints suivants sont disponibles :
+## 4. Authentification JWT
 
 ```bash
-/api/token/
-/api/token/refresh/
+POST /api/v1/auth/login/
+{"username": "admin", "password": "admin123"}
 ```
 
-## 7. Structure backend
+Utiliser le token `access` dans `Authorization: Bearer <token>`.
+
+## 5. Internationalisation API
+
+Champs traduits sur Product, Category, News. L'API retourne la langue selon :
+
+```http
+Accept-Language: fr
+Accept-Language: en
+```
+
+Champs stockés : `name`/`name_en`, `description`/`description_en`, etc.
+
+## 6. Comparateur d'offres
+
+```bash
+GET /api/v1/products/compare/?ids=1,2,3
+```
+
+Retourne jusqu'à 3 produits normalisés (prix, catégorie, FAQ, features).
+
+## 7. API partenaire
+
+Voir [partner-api.md](partner-api.md).
+
+```bash
+python manage.py create_partner_key --name "Demo"
+```
+
+## 8. PostgreSQL
+
+Variables d'environnement :
+
+```env
+DB_NAME=camtel
+DB_USER=camtel
+DB_PASSWORD=camtel
+DB_HOST=localhost
+DB_PORT=5432
+```
+
+Après migration de données SQLite → PostgreSQL :
+
+```bash
+python manage.py reset_pg_sequences
+```
+
+Index full-text GIN créés automatiquement sur PostgreSQL (migration `0003_postgres_fulltext_indexes`).
+
+## 9. Structure backend
 
 ```text
 backend/
 ├── apps/
-│   ├── categories/
-│   ├── products/
-│   ├── news/
-│   ├── promotions/
-│   ├── media/
-│   ├── contacts/
-│   ├── core/
-│   └── users/
-├── config/
-│   ├── settings/
-│   ├── urls.py
-│   ├── asgi.py
-│   └── wsgi.py
-├── db.sqlite3
-├── manage.py
-└── requirements.txt
+│   ├── categories/   # Catégories (FR/EN)
+│   ├── products/     # Produits, images, FAQ, comparateur
+│   ├── news/         # Actualités (FR/EN)
+│   ├── partners/     # Clés API partenaires
+│   ├── core/         # Health, chatbot, i18n, activity logs
+│   └── ...
+├── config/settings/
+│   ├── base.py       # Config commune + logs JSON
+│   ├── dev.py        # Développement
+│   └── prod.py       # Production (HTTPS, S3)
+└── manage.py
 ```
 
-## 8. Données initiales
-
-La commande :
+## 10. Tests
 
 ```bash
-python manage.py seed_data
+# SQLite (défaut)
+python manage.py test --verbosity 2
+
+# PostgreSQL
+DB_HOST=localhost DB_NAME=camtel DB_USER=camtel DB_PASSWORD=camtel python manage.py test
 ```
 
-crée les éléments de base suivants :
+## 11. Logs structurés
 
-- utilisateurs admin/editor
-- catégories télécom, internet et cloud
-- produits initiaux
-- promotions
-- actualités
-
-## 9. Tests backend
-
-```bash
-python manage.py test apps.products apps.core --verbosity 2
+```env
+LOG_FORMAT=json
+LOG_LEVEL=INFO
 ```
 
-## 10. Problèmes connus / points d’attention
+Format JSON activé par défaut en production (`config.settings.prod`).
 
-- Le projet utilise `apps.*` comme namespace Django.
-- Les dépendances backend doivent être installées dans l’environnement virtuel du projet.
-- Les migrations sont à relancer si de nouveaux modèles sont ajoutés.
+## 12. Stockage médias S3 (production)
+
+```env
+USE_S3_STORAGE=True
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_STORAGE_BUCKET_NAME=camtel-media
+AWS_S3_ENDPOINT_URL=https://s3.example.com  # MinIO compatible
+```

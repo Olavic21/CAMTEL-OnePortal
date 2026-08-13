@@ -22,9 +22,11 @@ export function PromotionBanner({ promotion, index = 0 }: { promotion: Promotion
       </span>
       <h3 className="mt-3 text-lg font-semibold">{promotion.title}</h3>
       <p className="mt-1 line-clamp-2 text-sm text-white/80">{promotion.description}</p>
-      <p className="mt-4 text-xs text-white/60">
-        {t('promotions.validUntil')} {formatDate(promotion.end_date)}
-      </p>
+      {promotion.end_date && (
+        <p className="mt-4 text-xs text-white/60">
+          {t('promotions.validUntil')} {formatDate(promotion.end_date)}
+        </p>
+      )}
     </motion.div>
   );
 }

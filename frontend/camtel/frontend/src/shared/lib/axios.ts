@@ -1,4 +1,5 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import i18n from './i18n';
 import { getAccessToken, getRefreshToken, setTokens, clearTokens } from './tokenStorage';
 
 export const API_BASE_URL =
@@ -9,12 +10,14 @@ export const httpClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Intercepteur de requete : injecte le token JWT courant
+// Intercepteur de requete : JWT + langue API (Accept-Language)
 httpClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  const lang = i18n.language?.startsWith('en') ? 'en' : 'fr';
+  config.headers['Accept-Language'] = lang;
   return config;
 });
 
@@ -55,7 +58,10 @@ httpClient.interceptors.response.use(
       } catch (refreshError) {
         clearTokens();
         pendingQueue = [];
-        window.location.assign('/admin/login');
+        const path = window.location.pathname;
+        if (path !== '/admin/login' && path !== '/inscription') {
+          window.location.assign('/admin/login');
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

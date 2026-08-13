@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Logo } from '@/shared/components/Logo';
 
 export function PublicFooter() {
   const { t } = useTranslation();
@@ -7,10 +8,9 @@ export function PublicFooter() {
     <footer className="border-t border-neutral-200 bg-neutral-900 text-neutral-300 dark:border-neutral-800 dark:bg-black">
       <div className="container-app grid grid-cols-1 gap-8 py-12 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <p className="mb-3 flex items-center gap-2 font-bold text-white">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-sm">C</span>
-            CAMTEL
-          </p>
+          <div className="mb-4">
+            <Logo variant="full-dark" className="justify-start" />
+          </div>
           <p className="text-sm text-neutral-400">{t('footer.tagline')}</p>
         </div>
         <div>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatPrice, truncate } from './format';
+import { formatPrice, formatDate, truncate } from './format';
 
 describe('formatPrice', () => {
   it('returns "Sur devis" when price is null', () => {
@@ -19,6 +19,23 @@ describe('formatPrice', () => {
   it('appends the price unit when provided', () => {
     const result = formatPrice(5000, '/mois');
     expect(result.endsWith('/mois')).toBe(true);
+  });
+});
+
+describe('formatDate', () => {
+  it('returns an empty string for null or undefined', () => {
+    expect(formatDate(null)).toBe('');
+    expect(formatDate(undefined)).toBe('');
+  });
+
+  it('returns an empty string for invalid ISO values', () => {
+    expect(formatDate('')).toBe('');
+    expect(formatDate('not-a-date')).toBe('');
+  });
+
+  it('formats a valid ISO date in French locale', () => {
+    const result = formatDate('2026-08-12T00:00:00.000Z');
+    expect(result.length).toBeGreaterThan(0);
   });
 });
 

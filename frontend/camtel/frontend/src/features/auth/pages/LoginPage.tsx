@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Button } from '@/shared/components/Button';
 import { Input } from '@/shared/components/Input';
 import { ThemeToggle } from '@/shared/components/ThemeToggle';
+import { Logo } from '@/shared/components/Logo';
 import { mockAuthStore } from '@/shared/lib/mockAuthStore';
 
 function buildSchema(t: TFunction) {
@@ -48,7 +49,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-100 px-4 dark:bg-neutral-950">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-100 px-4 py-8 dark:bg-neutral-950">
+      <Logo variant="brand" className="mb-8" />
       <div className="w-full max-w-sm">
         {isDemoMode && (
           <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900 dark:bg-amber-950/40">
@@ -70,7 +72,6 @@ export default function LoginPage() {
             <ThemeToggle />
           </div>
           <div className="mb-6 flex flex-col items-center gap-2">
-            <div className="h-10 w-10 rounded-lg bg-primary" aria-hidden />
             <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{t('auth.loginTitle')}</h1>
             <p className="text-sm text-neutral-500 dark:text-neutral-400">{t('auth.loginSubtitle')}</p>
           </div>

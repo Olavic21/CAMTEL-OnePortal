@@ -32,4 +32,19 @@ export const productsApi = {
   remove: (id: number) => httpClient.delete(`/products/${id}/`),
   exportPdf: (id: number) =>
     httpClient.get(`/products/${id}/export-pdf/`, { responseType: 'blob' }).then((r) => r.data),
+  compare: (ids: number[]) =>
+    httpClient
+      .get<Array<{
+        id: number;
+        name: string;
+        slug: string;
+        category: { id: number; name: string; slug: string };
+        price: number;
+        price_unit?: string;
+        short_description: string;
+        description: string;
+        features: { stock: number; is_active: boolean; views_count: number };
+        faqs: Array<{ id: number; question: string; answer: string }>;
+      }>>('/products/compare/', { params: { ids: ids.join(',') } })
+      .then((r) => r.data),
 };

@@ -22,6 +22,7 @@ export const queryKeys = {
     all: ['products'] as const,
     list: (params?: Record<string, unknown>) => ['products', 'list', params] as const,
     detail: (slug: string) => ['products', 'detail', slug] as const,
+    compare: (ids: number[]) => ['products', 'compare', ids] as const,
   },
   news: {
     all: ['news'] as const,

@@ -54,15 +54,19 @@ INSTALLED_APPS = [
     'apps.promotions',
     'apps.media',
     'apps.contacts',
+    'apps.subscriptions',
+    'apps.partners',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'apps.core.middleware.LanguageMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.core.middleware.ActivityLogMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -138,7 +142,12 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'fr'
+
+LANGUAGES = [
+    ('fr', 'Français'),
+    ('en', 'English'),
+]
 
 TIME_ZONE = 'UTC'
 
@@ -151,6 +160,53 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Logging structuré JSON (activable via LOG_FORMAT=json)
+LOG_FORMAT = os.environ.get('LOG_FORMAT', 'text')
+
+_log_formatters = {
+    'verbose': {
+        'format': '{levelname} {asctime} {module} {message}',
+        'style': '{',
+    },
+}
+
+try:
+    import pythonjsonlogger  # noqa: F401
+    _log_formatters['json'] = {
+        '()': 'pythonjsonlogger.jsonlogger.JsonFormatter',
+        'format': '%(asctime)s %(levelname)s %(name)s %(message)s',
+    }
+    _console_formatter = 'json' if LOG_FORMAT == 'json' else 'verbose'
+except ImportError:
+    _console_formatter = 'verbose'
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': _log_formatters,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': _console_formatter,
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': os.environ.get('LOG_LEVEL', 'INFO'),
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+}
 
 # Django REST Framework
 REST_FRAMEWORK = {
@@ -163,6 +219,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_RATES': {
+        'contact': '5/hour',
+    },
 }
 
 SPECTACULAR_SETTINGS = {
@@ -170,7 +229,10 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'API backend de la plateforme CAMTEL OnePortal.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
-    'SCHEMA_PATH_PREFIX': r'/api/',
+    'SCHEMA_PATH_PREFIX': r'/api/v1/',
+    'TAGS': [
+        {'name': 'Partner API', 'description': 'Endpoints partenaires (clé API X-API-Key, scopes limités).'},
+    ],
 }
 
 CORS_ALLOW_ALL_ORIGINS = True

@@ -8,6 +8,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Button } from '@/shared/components/Button';
 import { Input } from '@/shared/components/Input';
 import { ThemeToggle } from '@/shared/components/ThemeToggle';
+import { Logo } from '@/shared/components/Logo';
 
 // Inscription publique : tout le monde peut creer un compte, qui recoit au
 // minimum le role "visitor" — jamais un role plus eleve, choisi ici.
@@ -52,13 +53,13 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-100 px-4 dark:bg-neutral-950">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-100 px-4 py-8 dark:bg-neutral-950">
+      <Logo variant="brand" className="mb-8" />
       <div className="relative w-full max-w-sm rounded-xl bg-white p-8 shadow-sm dark:bg-neutral-900">
         <div className="absolute right-3 top-3">
           <ThemeToggle />
         </div>
         <div className="mb-6 flex flex-col items-center gap-2">
-          <div className="h-10 w-10 rounded-lg bg-primary" aria-hidden />
           <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">{t('auth.registerTitle')}</h1>
           <p className="text-center text-sm text-neutral-500 dark:text-neutral-400">{t('auth.registerSubtitle')}</p>
         </div>

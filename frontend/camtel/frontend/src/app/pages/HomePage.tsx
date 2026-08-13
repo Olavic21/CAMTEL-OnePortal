@@ -98,14 +98,14 @@ export default function HomePage() {
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {loadingProducts
             ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="aspect-[4/3] w-full" />)
-            : featured?.results.slice(0, 4).map((product, i) => (
+            : (featured?.results ?? []).slice(0, 4).map((product, i) => (
                 <ProductCard key={product.id} product={product} index={i} />
               ))}
         </div>
       </section>
 
       {/* Actualites */}
-      {!!news?.results.length && (
+      {(news?.results?.length ?? 0) > 0 && (
         <section className="bg-neutral-100 py-12 dark:bg-neutral-900">
           <div className="container-app">
             <div className="mb-6 flex items-center justify-between">
@@ -115,7 +115,7 @@ export default function HomePage() {
               </Link>
             </div>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
-              {news.results.slice(0, 3).map((article) => (
+              {(news?.results ?? []).slice(0, 3).map((article) => (
                 <Link
                   key={article.id}
                   to={`/actualites/${article.slug}`}

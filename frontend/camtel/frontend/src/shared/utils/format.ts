@@ -8,13 +8,19 @@ export function formatPrice(price: number | null | undefined, unit?: string | nu
   return unit ? `${formatted} ${unit}` : formatted;
 }
 
-export function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(iso));
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(date);
 }
 
-export function formatDateTime(iso: string): string {
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
   return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(
-    new Date(iso),
+    date,
   );
 }
 

@@ -1,0 +1,64 @@
+# Environnement de recette (staging) — PostgreSQL + logs JSON
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: camtel_staging
+      POSTGRES_USER: camtel
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-camtel-staging-secret}
+    volumes:
+      - staging_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U camtel -d camtel_staging"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      SECRET_KEY: ${SECRET_KEY:-staging-secret-change-me}
+      DEBUG: "False"
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-staging.camtel.local}
+      DB_NAME: camtel_staging
+      DB_USER: camtel
+      DB_PASSWORD: ${DB_PASSWORD:-camtel-staging-secret}
+      DB_HOST: db
+      DB_PORT: "5432"
+      LOG_FORMAT: json
+      LOG_LEVEL: INFO
+      USE_S3_STORAGE: ${USE_S3_STORAGE:-False}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_STORAGE_BUCKET_NAME: ${AWS_STORAGE_BUCKET_NAME:-camtel-staging-media}
+      AWS_S3_ENDPOINT_URL: ${AWS_S3_ENDPOINT_URL:-}
+    volumes:
+      - staging_media:/app/backend/media
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "python manage.py migrate && python manage.py seed_data && python manage.py reset_pg_sequences && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+
+  frontend:
+    build:
+      context: ./frontend/camtel/frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "8081:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  staging_postgres:
+  staging_media:

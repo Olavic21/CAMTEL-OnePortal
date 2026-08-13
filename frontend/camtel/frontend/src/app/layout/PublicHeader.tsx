@@ -5,6 +5,7 @@ import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { SearchAutocomplete } from '@/shared/components/SearchAutocomplete';
 import { ThemeToggle } from '@/shared/components/ThemeToggle';
+import { Logo } from '@/shared/components/Logo';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 
 const links = [
@@ -23,12 +24,7 @@ export function PublicHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-neutral-200 bg-white/95 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/95">
       <div className="container-app flex h-16 items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 font-bold text-primary dark:text-primary-300">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm text-white">
-            C
-          </span>
-          CAMTEL-OnePortal
-        </Link>
+        <Logo variant="header" />
 
         <nav className="hidden items-center gap-6 md:flex" aria-label="Navigation principale">
           {links.map((link) => (
