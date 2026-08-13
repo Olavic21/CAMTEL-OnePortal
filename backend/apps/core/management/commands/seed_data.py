@@ -48,31 +48,34 @@ class Command(BaseCommand):
             is_staff=True,
         )
 
-        telecom, _ = Category.objects.get_or_create(
+        telecom, _ = Category.objects.update_or_create(
             slug='telecom',
             defaults={
                 'name': 'Télécom',
                 'name_en': 'Telecom',
                 'description': 'Solutions de télécommunication',
                 'description_en': 'Telecommunication solutions',
+                'segment': Category.Segment.ENTREPRISE,
             },
         )
-        internet, _ = Category.objects.get_or_create(
+        internet, _ = Category.objects.update_or_create(
             slug='internet',
             defaults={
                 'name': 'Internet',
                 'name_en': 'Internet',
                 'description': 'Accès internet et fibre',
                 'description_en': 'Internet and fiber access',
+                'segment': Category.Segment.GRAND_PUBLIC,
             },
         )
-        cloud, _ = Category.objects.get_or_create(
+        cloud, _ = Category.objects.update_or_create(
             slug='cloud',
             defaults={
                 'name': 'Cloud',
                 'name_en': 'Cloud',
                 'description': 'Services cloud et datacenter',
                 'description_en': 'Cloud and datacenter services',
+                'segment': Category.Segment.ENTREPRISE,
             },
         )
 

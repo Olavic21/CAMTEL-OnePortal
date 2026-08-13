@@ -1,22 +1,36 @@
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from io import BytesIO
-from rest_framework import permissions, status, viewsets
+from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.core.permissions import ReadPublicWriteAdminOrEditor
+from apps.core.permissions import IsAdminUser, ReadPublicWriteAdminOrEditor
 
-from .models import Product, ProductFAQ
-from .serializers import ProductCompareSerializer, ProductFAQSerializer, ProductSerializer
+from .models import Product, ProductFAQ, ProductImage
+from .serializers import (
+    ProductCompareSerializer,
+    ProductFAQSerializer,
+    ProductImageSerializer,
+    ProductSerializer,
+)
 
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all().select_related('category')
+    queryset = Product.objects.all().select_related('category').prefetch_related('images', 'faqs')
     serializer_class = ProductSerializer
     permission_classes = [ReadPublicWriteAdminOrEditor]
     lookup_field = 'slug'
     lookup_value_regex = '[^/]+'
+
+    def get_permissions(self):
+        # RBAC fin cote serveur (matrice section 9.2) : la publication et la
+        # suppression d'un produit sont reservees aux Admin / Super Admin.
+        # Les Editeurs et Gestionnaires Produits peuvent creer et modifier
+        # (brouillons) mais ni publier ni supprimer.
+        if self.action in {'publish', 'destroy'}:
+            return [IsAdminUser()]
+        return super().get_permissions()
 
     def get_object(self):
         lookup = self.kwargs.get(self.lookup_url_kwarg or self.lookup_field)
@@ -28,7 +42,9 @@ class ProductViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         from django.db.models import Q
         from apps.core.i18n import get_request_language
-        query = self.request.query_params.get('q')
+        params = self.request.query_params
+        # Recherche — le frontend envoie `search`, l'API partner `q` : on gere les deux.
+        query = params.get('search') or params.get('q')
         if query:
             lang = get_request_language(self.request)
             if lang == 'en':
@@ -46,6 +62,22 @@ class ProductViewSet(viewsets.ModelViewSet):
                     Q(description__icontains=query) |
                     Q(category__name__icontains=query)
                 )
+        # Filtre par categorie (slug)
+        category = params.get('category')
+        if category:
+            queryset = queryset.filter(category__slug=category)
+        # Filtre par segment commercial (via la categorie)
+        segment = params.get('segment')
+        if segment:
+            queryset = queryset.filter(category__segment=segment)
+        # Tri (valeurs en liste blanche pour eviter toute injection d'ordre)
+        ordering = params.get('ordering')
+        allowed_ordering = {
+            'price', '-price', 'created_at', '-created_at',
+            'views_count', '-views_count', 'name', '-name',
+        }
+        if ordering in allowed_ordering:
+            queryset = queryset.order_by(ordering)
         return queryset
 
     @action(detail=False, methods=['get'], url_path='compare')
@@ -152,3 +184,35 @@ class ProductFAQViewSet(viewsets.ModelViewSet):
         if product_id:
             queryset = queryset.filter(product_id=product_id)
         return queryset
+
+
+# Sous-ressource images : /products/<product_id>/images/ (creation + liste) et
+# /products/<product_id>/images/<id>/ (detail). Permet l'upload d'une image de
+# couverture et la gestion de la galerie depuis l'interface d'administration.
+class ProductImageListCreateView(generics.ListCreateAPIView):
+    serializer_class = ProductImageSerializer
+    permission_classes = [ReadPublicWriteAdminOrEditor]
+
+    def get_queryset(self):
+        return ProductImage.objects.filter(product_id=self.kwargs['product_id']).order_by('order', 'created_at')
+
+    def get_product(self):
+        return get_object_or_404(Product, pk=self.kwargs['product_id'])
+
+    def perform_create(self, serializer):
+        product = self.get_product()
+        existing = product.images.count()
+        serializer.save(
+            product=product,
+            order=existing + 1,
+            is_primary=existing == 0,
+        )
+
+
+class ProductImageDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = ProductImageSerializer
+    permission_classes = [ReadPublicWriteAdminOrEditor]
+    queryset = ProductImage.objects.all()
+
+    def get_queryset(self):
+        return ProductImage.objects.filter(product_id=self.kwargs['product_id'])

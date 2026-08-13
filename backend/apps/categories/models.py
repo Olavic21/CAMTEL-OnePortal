@@ -1,12 +1,19 @@
 from django.db import models
 
+
 class Category(models.Model):
+    class Segment(models.TextChoices):
+        GRAND_PUBLIC = 'grand_public', 'Grand public'
+        ENTREPRISE = 'entreprise', 'Entreprise'
+
     name = models.CharField(max_length=255)
     name_en = models.CharField(max_length=255, blank=True, default='')
     slug = models.SlugField(max_length=255, unique=True)
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children')
     description = models.TextField(blank=True, default='')
     description_en = models.TextField(blank=True, default='')
+    # Segment commercial : permet de filtrer le catalogue Grand public / Entreprise.
+    segment = models.CharField(max_length=20, choices=Segment.choices, default=Segment.GRAND_PUBLIC)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -13,6 +13,15 @@ CSRF_COOKIE_SECURE = True
 
 LOG_FORMAT = os.environ.get('LOG_FORMAT', 'json')  # noqa: F405
 
+# CORS : en production, jamais d'origine sauvage (*). La liste blanche est
+# fournie via CORS_ALLOWED_ORIGINS (ex: https://portal.camtel.cm).
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+    if origin.strip()
+]  # noqa: F405
+
 # Stockage objet S3-compatible (MinIO, AWS S3, etc.)
 USE_S3_STORAGE = os.environ.get('USE_S3_STORAGE', 'False').lower() in {'1', 'true', 'yes', 'on'}  # noqa: F405
 

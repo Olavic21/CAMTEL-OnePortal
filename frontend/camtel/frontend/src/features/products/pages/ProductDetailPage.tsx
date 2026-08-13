@@ -1,15 +1,16 @@
 import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useProduct } from '../hooks/useProducts';
+import { useProduct, useProducts } from '../hooks/useProducts';
 import { useExportProductPdf } from '../hooks/useExportProductPdf';
 import { ProductGallery } from '../components/ProductGallery';
 import { ProductFaqList } from '../components/ProductFaqList';
+import { ProductCard } from '../components/ProductCard';
 import { Breadcrumbs } from '@/shared/components/Breadcrumbs';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
 import { Skeleton } from '@/shared/components/Skeleton';
 import { formatPrice } from '@/shared/utils/format';
-import { FileDown, PhoneCall } from 'lucide-react';
+import { FileDown, PhoneCall, UserPlus } from 'lucide-react';
 
 export default function ProductDetailPage() {
   const { t } = useTranslation();
@@ -66,8 +67,13 @@ export default function ProductDetailPage() {
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link to="/contact">
+            <Link to={`/produits/${product.slug}/souscrire`}>
               <Button size="lg">
+                <UserPlus className="h-4 w-4" /> {t('products.subscribeCta')}
+              </Button>
+            </Link>
+            <Link to="/contact">
+              <Button size="lg" variant="tertiary">
                 <PhoneCall className="h-4 w-4" /> {t('products.contactCta')}
               </Button>
             </Link>
@@ -96,11 +102,38 @@ export default function ProductDetailPage() {
         </div>
       )}
 
+      {product.category && <SimilarProducts categorySlug={product.category.slug} currentId={product.id} />}
+
       <div className="mt-12 text-center">
         <Link to="/produits" className="text-sm font-medium text-primary hover:underline dark:text-primary-300">
           &larr; {t('common.backToCatalog')}
         </Link>
       </div>
+    </div>
+  );
+}
+
+function SimilarProducts({ categorySlug, currentId }: { categorySlug: string; currentId: number }) {
+  const { t } = useTranslation();
+  const { data, isLoading } = useProducts({ category: categorySlug });
+  const similar = (data?.results ?? []).filter((p) => p.id !== currentId).slice(0, 4);
+  if (!isLoading && !similar.length) return null;
+  return (
+    <div className="mt-14">
+      <h2 className="mb-6 text-lg font-semibold text-neutral-900 dark:text-neutral-100">{t('products.similarProducts')}</h2>
+      {isLoading ? (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="aspect-[4/3] w-full" />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {similar.map((p, i) => (
+            <ProductCard key={p.id} product={p} index={i} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

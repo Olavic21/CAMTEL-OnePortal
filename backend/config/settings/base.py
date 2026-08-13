@@ -235,7 +235,15 @@ SPECTACULAR_SETTINGS = {
     ],
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS — en developpement on autorise tout par defaut, mais on peut restreindre
+# via l'environnement (CORS_ALLOW_ALL_ORIGINS / CORS_ALLOWED_ORIGINS). La
+# configuration de production (settings/prod.py) force une liste blanche stricte.
+CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'True').lower() in {'1', 'true', 'yes', 'on'}
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+    if origin.strip()
+]
 CORS_URLS_REGEX = r'^/api/.*$'
 
 # Custom User Model

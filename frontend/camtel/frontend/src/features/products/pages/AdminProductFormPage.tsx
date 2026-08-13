@@ -2,8 +2,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useEffect, useMemo } from 'react';
-import { useTranslation, type TFunction } from 'react-i18next';
+import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
+import { ImagePlus, X } from 'lucide-react';
 import { useProduct, useCreateProduct, useUpdateProduct } from '../hooks/useProducts';
 import { useCategories } from '@/features/categories/hooks/useCategories';
 import { Input, Textarea, Select } from '@/shared/components/Input';
@@ -41,6 +43,9 @@ export default function AdminProductFormPage() {
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const schema = useMemo(() => buildSchema(t), [t]);
+  // Image de couverture (upload uniquement a la creation).
+  const [coverImage, setCoverImage] = useState<File | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
 
   // En edition, on recupere le produit via son slug potentiel = id ici pour la demo ;
   // en pratique un endpoint /products/by-id/{id}/ ou la recherche par id serait utilise.
@@ -73,13 +78,20 @@ export default function AdminProductFormPage() {
         await updateProduct.mutateAsync({ id: existing.id, payload: values });
         push(t('admin.products.form.updated_toast'));
       } else {
-        await createProduct.mutateAsync(values);
+        await createProduct.mutateAsync({ payload: values, coverImage });
         push(t('admin.products.form.created_toast'));
       }
       navigate('/admin/produits');
     } catch {
       push(t('admin.products.form.error_toast'), 'error');
     }
+  }
+
+  function handleCoverChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    setCoverImage(file);
+    if (coverPreview) URL.revokeObjectURL(coverPreview);
+    setCoverPreview(file ? URL.createObjectURL(file) : null);
   }
 
   return (
@@ -122,6 +134,40 @@ export default function AdminProductFormPage() {
           />
           <Input label={t('admin.products.form.priceUnit')} {...register('price_unit')} />
         </div>
+
+        {!isEdit && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+              {t('admin.products.form.coverImage')}
+            </label>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">{t('admin.products.form.coverImageHint')}</p>
+            {coverPreview ? (
+              <div className="flex items-center gap-3 rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+                <img src={coverPreview} alt="Aperçu de couverture" className="h-16 w-16 rounded-lg object-cover" />
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs text-neutral-500">{coverImage?.name}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCoverImage(null);
+                      if (coverPreview) URL.revokeObjectURL(coverPreview);
+                      setCoverPreview(null);
+                    }}
+                    className="inline-flex w-fit items-center gap-1 text-xs font-medium text-red-600 hover:underline"
+                  >
+                    <X className="h-3 w-3" /> Retirer
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-neutral-300 px-4 py-8 text-center text-sm text-neutral-500 transition-colors hover:border-primary hover:bg-primary-50 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-primary-900/20">
+                <ImagePlus className="h-6 w-6 text-neutral-400" />
+                <span>{t('admin.products.form.coverImage')}</span>
+                <input type="file" accept="image/*" className="hidden" onChange={handleCoverChange} />
+              </label>
+            )}
+          </div>
+        )}
 
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" {...register('is_featured')} className="h-4 w-4 rounded border-neutral-300" />

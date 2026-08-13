@@ -49,8 +49,9 @@ function saveStore(accounts: MockAccount[]) {
 }
 
 function stripPassword(account: MockAccount): User {
-  const { password: _password, ...user } = account;
-  return user;
+  const user: Partial<MockAccount> = { ...account };
+  delete user.password;
+  return user as User;
 }
 
 function nextId(accounts: MockAccount[]): number {

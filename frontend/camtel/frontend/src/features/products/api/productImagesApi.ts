@@ -13,10 +13,9 @@ export const productImagesApi = {
     const formData = new FormData();
     formData.append('image', file);
     if (altText) formData.append('alt_text', altText);
+    // Le Content-Type est laisse vide : le navigateur fixe seul le boundary.
     return httpClient
-      .post<ProductImage>(`/products/${productId}/images/`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      .post<ProductImage>(`/products/${productId}/images/`, formData)
       .then((r) => r.data);
   },
   update: (productId: number, imageId: number, payload: ProductImageUpdatePayload) =>

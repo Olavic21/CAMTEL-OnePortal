@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from 'react-router-dom';
-import { Scale, PackageSearch } from 'lucide-react';
+import { Scale, PackageSearch, ArrowUpDown } from 'lucide-react';
 import { useState } from 'react';
 import { useProducts } from '../hooks/useProducts';
 import { useCategories } from '@/features/categories/hooks/useCategories';
@@ -10,10 +10,13 @@ import { Skeleton } from '@/shared/components/Skeleton';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { useTranslation } from 'react-i18next';
 
+type SortValue = '' | 'price' | '-price' | '-created_at' | 'name';
+
 export default function ProductListPage() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
+  const [orderBy, setOrderBy] = useState<SortValue>('');
   const filters: ProductFilterState = {
     category: searchParams.get('category') ?? '',
     segment: searchParams.get('segment') ?? '',
@@ -25,11 +28,13 @@ export default function ProductListPage() {
     category: filters.category || undefined,
     segment: filters.segment || undefined,
     search: filters.search || undefined,
+    ordering: orderBy || undefined,
     page,
   });
 
   function updateFilters(next: ProductFilterState) {
     setPage(1);
+    setOrderBy('');
     const params = new URLSearchParams();
     if (next.category) params.set('category', next.category);
     if (next.segment) params.set('segment', next.segment);
@@ -37,7 +42,9 @@ export default function ProductListPage() {
     setSearchParams(params);
   }
 
-  const totalPages = data ? Math.ceil(data.count / 12) : 1;
+  const totalProducts = data?.count ?? 0;
+  const pageSize = 12;
+  const totalPages = Math.ceil(totalProducts / pageSize) || 1;
 
   return (
     <div className="container-app py-10">
@@ -61,6 +68,30 @@ export default function ProductListPage() {
           onChange={updateFilters}
         />
       </div>
+
+      {/* Barre d'outils du catalogue : nombre de résultats + tri */}
+      {!isLoading && !!totalProducts && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            <span className="font-medium text-neutral-700 dark:text-neutral-200">{totalProducts}</span> résultat{totalProducts > 1 ? 's' : ''}
+          </p>
+          <div className="flex items-center gap-2">
+            <ArrowUpDown className="h-4 w-4 text-neutral-400" />
+            <select
+              value={orderBy}
+              onChange={(e) => { setOrderBy(e.target.value as SortValue); setPage(1); }}
+              className="rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm outline-none focus:border-primary dark:border-neutral-700 dark:bg-neutral-900"
+              aria-label="Trier par"
+            >
+              <option value="">Pertinence</option>
+              <option value="price">Prix croissant</option>
+              <option value="-price">Prix décroissant</option>
+              <option value="-created_at">Plus récents</option>
+              <option value="name">Ordre alphabétique</option>
+            </select>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">

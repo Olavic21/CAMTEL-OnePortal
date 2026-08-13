@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Select, Input } from '@/shared/components/Input';
@@ -9,6 +10,8 @@ export interface ProductFilterState {
   search: string;
 }
 
+const SEARCH_DEBOUNCE_MS = 400;
+
 export function ProductFilters({
   categories,
   filters,
@@ -19,6 +22,22 @@ export function ProductFilters({
   onChange: (filters: ProductFilterState) => void;
 }) {
   const { t } = useTranslation();
+  // La recherche est debouncee pour ne pas marteler le backend a chaque frappe.
+  const [searchInput, setSearchInput] = useState(filters.search);
+
+  useEffect(() => {
+    setSearchInput(filters.search);
+  }, [filters.search]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (searchInput !== filters.search) {
+        onChange({ ...filters, search: searchInput });
+      }
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timeout);
+  }, [searchInput, filters, onChange]);
+
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900 sm:flex-row sm:items-end">
       <div className="relative flex-1">
@@ -27,8 +46,8 @@ export function ProductFilters({
           label={t('products.search')}
           placeholder={t('products.searchPlaceholder')}
           className="pl-9"
-          value={filters.search}
-          onChange={(e) => onChange({ ...filters, search: e.target.value })}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
         />
       </div>
       <Select

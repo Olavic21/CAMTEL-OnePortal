@@ -7,7 +7,9 @@ export const API_BASE_URL =
 
 export const httpClient = axios.create({
   baseURL: API_BASE_URL,
-  headers: { 'Content-Type': 'application/json' },
+  // NB: pas de "Content-Type" global — axios l'inferre automatiquement
+  // (application/json pour un objet, multipart/form-data avec boundary pour un
+  // FormData), ce qui rend l'upload de fichiers fiable cote navigateur.
 });
 
 // Intercepteur de requete : JWT + langue API (Accept-Language)

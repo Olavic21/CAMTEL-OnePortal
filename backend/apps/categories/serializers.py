@@ -25,6 +25,7 @@ class CategorySerializer(TranslatableModelSerializer):
             'parent',
             'description',
             'description_en',
+            'segment',
             'children',
             'is_active',
             'created_at',

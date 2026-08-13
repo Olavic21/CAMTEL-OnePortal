@@ -7,6 +7,7 @@ export interface ProductListParams {
   search?: string;
   page?: number;
   status?: string;
+  ordering?: string;
 }
 
 export interface ProductPayload {
@@ -24,8 +25,23 @@ export const productsApi = {
   list: (params: ProductListParams = {}) =>
     httpClient.get<Paginated<Product>>('/products/', { params }).then((r) => r.data),
   detail: (slug: string) => httpClient.get<Product>(`/products/${slug}/`).then((r) => r.data),
-  create: (payload: ProductPayload) =>
-    httpClient.post<Product>('/products/', payload).then((r) => r.data),
+  create: (payload: ProductPayload, coverImage?: File | null) => {
+    // En presence d'une image de couverture, on envoie en multipart/form-data.
+    if (coverImage) {
+      const formData = new FormData();
+      formData.append('name', payload.name);
+      formData.append('category_id', String(payload.category_id));
+      formData.append('short_description', payload.short_description);
+      formData.append('description', payload.description);
+      if (payload.price !== undefined && payload.price !== null) {
+        formData.append('price', String(payload.price));
+      }
+      if (payload.price_unit) formData.append('price_unit', payload.price_unit);
+      formData.append('image', coverImage);
+      return httpClient.post<Product>('/products/', formData).then((r) => r.data);
+    }
+    return httpClient.post<Product>('/products/', payload).then((r) => r.data);
+  },
   update: (id: number, payload: Partial<ProductPayload>) =>
     httpClient.patch<Product>(`/products/${id}/`, payload).then((r) => r.data),
   publish: (id: number) => httpClient.post<Product>(`/products/${id}/publish/`).then((r) => r.data),

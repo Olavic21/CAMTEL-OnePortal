@@ -20,7 +20,8 @@ export function useProduct(slug: string | undefined) {
 export function useCreateProduct() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: ProductPayload) => productsApi.create(payload),
+    mutationFn: ({ payload, coverImage }: { payload: ProductPayload; coverImage?: File | null }) =>
+      productsApi.create(payload, coverImage),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.products.all }),
   });
 }

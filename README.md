@@ -125,6 +125,9 @@ npm run build
 - **Authentification JWT** : `/api/v1/auth/login/`
 - **Internationalisation API** : en-tête `Accept-Language: fr|en`
 - **Comparateur d'offres** : `GET /api/v1/products/compare/?ids=1,2,3`
+- **Catalogue filtrable et triable** : `GET /api/v1/products/?search=&category=<slug>&segment=<grand_public|entreprise>&ordering=<price|-price|name|-created_at|...>` (le champ `segment` est porté par les catégories)
+- **RBAC fin côté serveur** : la publication/suppression d'un produit est réservée aux Admin/Super Admin (Editeurs/Gestionnaires : création et modification uniquement)
+- **Gestion des médias sécurisée** : formats autorisés et taille max 10 Mo validés côté API
 - **API partenaire** : en-tête `X-API-Key` (voir [docs/partner-api.md](docs/partner-api.md))
 - **Chatbot** : `POST /api/v1/chatbot/ask/` (voir [docs/oneportal-ai.md](docs/oneportal-ai.md))
 - **Healthcheck avancé** : `GET /api/v1/health/`
