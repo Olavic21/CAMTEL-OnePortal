@@ -1,0 +1,8 @@
+<html>
+  <body>
+    <p>Bonjour {{ user.first_name|default:user.username }},</p>
+    <p>Votre demande de souscription <strong>{{ request_number }}</strong> pour <strong>{{ product_name }}</strong> a été <strong>approuvée</strong>.</p>
+    <p>Vous pouvez suivre la suite du processus dans votre <a href="{{ site_url|default:'#' }}">espace client</a>.</p>
+    <p>Cordialement,<br/>L'équipe CAMTEL OnePortal</p>
+  </body>
+</html>

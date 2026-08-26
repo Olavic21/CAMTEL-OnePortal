@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    restart: unless-stopped
+    ports:
+      - '1025:1025'   # SMTP
+      - '8025:8025'   # HTTP UI
+
+  worker:
+    image: python:3.12-slim
+    command: bash -lc "pip install -r /app/requirements.txt && celery -A backend.celery.app worker --loglevel=info"
+    volumes:
+      - ./:/app:ro
+    depends_on:
+      - redis
+      - mailhog

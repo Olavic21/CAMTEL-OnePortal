@@ -1,0 +1,43 @@
+{
+  "snapshot_date": "2026-08-25",
+  "note": "Sources officielles utilisees pour le catalogue OnePortal. Toute donnee commerciale doit referencer une entree de ce fichier.",
+  "sources": [
+    {
+      "key": "camtel_hosting_home",
+      "name": "CAMTEL Hosting official website",
+      "url": "https://hosting.camtel.cm/",
+      "domains_covered": ["CB Bare Metal Server", "CB M. Web Hosting", "CB Rack Housing", "CB VPS", "Cloud Support", "Domains", "Additional Services"],
+      "checked_at": "2026-08-25"
+    },
+    {
+      "key": "camtel_carrier_services",
+      "name": "CAMTEL Carrier official website (Services)",
+      "url": "https://carrier.camtel.cm/services",
+      "domains_covered": ["Urban Leased Line", "Intercity Leased Line", "DIA", "IP Transit", "IP/MPLS", "IPLC", "Infrastructure Sharing", "Satellite", "Data Center"],
+      "checked_at": "2026-08-25"
+    },
+    {
+      "key": "camtel_portal_home",
+      "name": "CAMTEL corporate website",
+      "url": "https://www.camtel.cm/",
+      "domains_covered": ["Mobile (blue)", "Landline", "Transport", "Data Storage", "Blue Shop", "Fiber Connect", "Data Plans", "Data Center"],
+      "checked_at": "2026-08-25"
+    },
+    {
+      "key": "camtel_fiberconnect",
+      "name": "Fiber Connect portal (React SPA)",
+      "url": "https://fiberconnect.camtel.cm/",
+      "domains_covered": ["FTTH subscription"],
+      "checked_at": "2026-08-25",
+      "note": "Application JS ; aucune offre exploitable sans JavaScript au moment de la verification. A re-verifier."
+    },
+    {
+      "key": "blue_website",
+      "name": "Blue official website",
+      "url": "https://blue.camtel.cm/services",
+      "domains_covered": ["Mobile bundles"],
+      "checked_at": "2026-08-25",
+      "note": "Site inaccessible depuis l'environnement de verification le 2026-08-25 (fetch/curl echoues). Aucune offre Blue n'a donc ete importee avec des valeurs inventees. Re-verifier avant tout affichage tarifaire Blue."
+    }
+  ]
+}

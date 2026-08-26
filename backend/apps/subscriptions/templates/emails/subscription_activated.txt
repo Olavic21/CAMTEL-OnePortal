@@ -1,0 +1,8 @@
+Bonjour {{ user.first_name|default:user.username }},
+
+Votre souscription {{ request_number }} pour {{ product_name }} est désormais activée.
+
+Merci pour votre confiance.
+
+Cordialement,
+L'équipe CAMTEL OnePortal

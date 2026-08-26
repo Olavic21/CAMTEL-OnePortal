@@ -1,0 +1,10 @@
+Bonjour {{ user.first_name|default:user.username }},
+
+Nous sommes au regret de vous informer que votre demande de souscription {{ request_number }} pour {{ product_name }} a été rejetée.
+
+Raison: {{ reason }}
+
+Pour plus d'informations, veuillez consulter votre espace client ou contacter le support.
+
+Cordialement,
+L'équipe CAMTEL OnePortal

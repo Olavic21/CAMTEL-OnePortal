@@ -1,0 +1,8 @@
+<html>
+  <body>
+    <p>Bonjour {{ user.first_name|default:user.username }},</p>
+    <p>Votre souscription <strong>{{ request_number }}</strong> pour <strong>{{ product_name }}</strong> est désormais <strong>activée</strong>.</p>
+    <p>Merci pour votre confiance.</p>
+    <p>Cordialement,<br/>L'équipe CAMTEL OnePortal</p>
+  </body>
+</html>

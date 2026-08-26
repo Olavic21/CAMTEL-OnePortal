@@ -1,0 +1,10 @@
+Bonjour {{ user.first_name|default:user.username }},
+
+Des informations complémentaires sont requises pour votre demande de souscription {{ request_number }} pour {{ product_name }}.
+
+Détails: {{ comment }}
+
+Merci de fournir ces informations via votre espace client.
+
+Cordialement,
+L'équipe CAMTEL OnePortal
