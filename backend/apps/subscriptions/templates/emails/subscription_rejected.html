@@ -1,0 +1,9 @@
+<html>
+  <body>
+    <p>Bonjour {{ user.first_name|default:user.username }},</p>
+    <p>Nous sommes au regret de vous informer que votre demande de souscription <strong>{{ request_number }}</strong> pour <strong>{{ product_name }}</strong> a été <strong>rejetée</strong>.</p>
+    <p><strong>Raison:</strong> {{ reason }}</p>
+    <p>Pour plus d'informations, veuillez consulter votre <a href="{{ site_url|default:'#' }}">espace client</a> ou contacter le support.</p>
+    <p>Cordialement,<br/>L'équipe CAMTEL OnePortal</p>
+  </body>
+</html>

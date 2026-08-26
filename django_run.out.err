@@ -1,0 +1,4 @@
+[25/Aug/2026 14:32:01] "GET /api/v1/health/ HTTP/1.1" 200 64
+ERROR 2026-08-25 14:33:02,623 providers Gemini model 'gemini-1.5-flash' introuvable (404). Verifiez CHATBOT_MODEL. Models disponibles : gemini-3.6-flash, gemini-3.5-flash, gemini-2.5-flash, gemini-pro-latest. Erreur : 404 models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.
+ERROR 2026-08-25 14:33:02,668 providers LLM generation failed: 404 models/gemini-1.5-flash is not found for API version v1beta, or is not supported for generateContent. Call ModelService.ListModels to see the list of available models and their supported methods.
+[25/Aug/2026 14:33:02] "POST /api/v1/chatbot/ask/ HTTP/1.1" 200 228

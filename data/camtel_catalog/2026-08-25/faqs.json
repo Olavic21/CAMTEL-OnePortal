@@ -1,0 +1,47 @@
+{
+  "snapshot_date": "2026-08-25",
+  "faqs": [
+    {
+      "product_slug": "reseau-mobile-blue",
+      "question_fr": "Comment souscrire à blue ?",
+      "answer_fr": "Pour souscrire à blue, rendez-vous dans une agence CAMTEL, un point de vente ou un distributeur agréé muni de votre carte nationale d'identité (source officielle camtel.cm).",
+      "question_en": "How do I subscribe to blue?",
+      "answer_en": "To subscribe to blue, contact an agency, a sale point or an authorised distributor with your national identity card (official source camtel.cm)."
+    },
+    {
+      "product_slug": "cb-vps-xs",
+      "question_fr": "Combien coûte un VPS CAMTEL ?",
+      "answer_fr": "Les plans CB VPS sont publiés sur hosting.camtel.cm : CB VPS XS à 12 000 FCFA/mois (144 000 FCFA/an) jusqu'au CB VPS Quad XXL à 115 000 FCFA/mois (1 380 000 FCFA/an). Options : Data Backups, VPS Backups et VNIC à 10 000 FCFA/mois.",
+      "question_en": "How much does a CAMTEL VPS cost?",
+      "answer_en": "CB VPS plans are published on hosting.camtel.cm: CB VPS XS at 12,000 FCFA/month up to CB VPS Quad XXL at 115,000 FCFA/month. Add-ons: Data Backups, VPS Backups and VNIC at 10,000 FCFA/month."
+    },
+    {
+      "product_slug": "landline-fiber-home",
+      "question_fr": "Quel est le débit de l'internet fixe CAMTEL ?",
+      "answer_fr": "Selon l'annonce officielle CAMTEL (Landline) : Internet illimité jusqu'à 50 Mbps sur la fibre à domicile. Aucun autre niveau d'offre n'est publié officiellement.",
+      "question_en": "What is the speed of CAMTEL fixed internet?",
+      "answer_en": "According to the official CAMTEL (Landline) claim: unlimited Internet up to 50 Mbps over home fibre. No other offer tier is officially published."
+    },
+    {
+      "product_slug": "carrier-urban-leased-line",
+      "question_fr": "Quels services propose CAMTEL Carrier ?",
+      "answer_fr": "CAMTEL Carrier propose : Urban Leased Line, Intercity Leased Line, Dedicated Internet Access (DIA), IP Transit, IP/MPLS, International Leased Line (IPLC), Infrastructure Sharing (colocation CoCLS/CoSiCam), Satellite et services Data Center. Tarifs non publiés : sur demande.",
+      "question_en": "Which services does CAMTEL Carrier offer?",
+      "answer_en": "CAMTEL Carrier offers Urban Leased Line, Intercity Leased Line, Dedicated Internet Access (DIA), IP Transit, IP/MPLS, International Leased Line (IPLC), Infrastructure Sharing (CoCLS/CoSiCam colocation), Satellite and Data Center services. Prices are not published: on request."
+    },
+    {
+      "product_slug": "camtel-domain-name",
+      "question_fr": "Quelles extensions de domaines CAMTEL propose-t-il ?",
+      "answer_fr": "Sur hosting.camtel.cm, CAMTEL gère les extensions nationales (.cm) et internationales (.com, .net, .org, .info), avec sous-domaines gratuits inclus (quota selon l'extension) et disponibilité vérifiée en temps réel.",
+      "question_en": "Which domain extensions does CAMTEL provide?",
+      "answer_en": "On hosting.camtel.cm, CAMTEL manages national (.cm) and international (.com, .net, .org, .info) extensions, with free sub-domains included (quota depends on the extension) and real-time availability checks."
+    },
+    {
+      "product_slug": "fiber-connect-service",
+      "question_fr": "Comment vérifier mon éligibilité fibre ?",
+      "answer_fr": "Le parcours OnePortal permet de saisir votre adresse pour une vérification d'éligibilité Fiber Connect. Tant que l'API officielle CAMTEL n'est pas connectée, le résultat est indicatif et marqué « à vérifier » — la confirmation finale est donnée par CAMTEL.",
+      "question_en": "How can I check my fibre eligibility?",
+      "answer_en": "The OnePortal flow lets you enter your address for a Fiber Connect eligibility check. Until the official CAMTEL API is connected, results are indicative and flagged as requiring verification; final confirmation is given by CAMTEL."
+    }
+  ]
+}

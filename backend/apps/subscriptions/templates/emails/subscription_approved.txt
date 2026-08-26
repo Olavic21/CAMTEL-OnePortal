@@ -1,0 +1,8 @@
+Bonjour {{ user.first_name|default:user.username }},
+
+Votre demande de souscription {{ request_number }} pour {{ product_name }} a été approuvée.
+
+Vous pouvez suivre la suite du processus dans votre espace client.
+
+Cordialement,
+L'équipe CAMTEL OnePortal

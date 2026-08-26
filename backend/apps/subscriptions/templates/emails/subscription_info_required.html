@@ -1,0 +1,9 @@
+<html>
+  <body>
+    <p>Bonjour {{ user.first_name|default:user.username }},</p>
+    <p>Des informations complémentaires sont requises pour votre demande de souscription <strong>{{ request_number }}</strong> pour <strong>{{ product_name }}</strong>.</p>
+    <p>Détails: {{ comment }}</p>
+    <p>Merci de fournir ces informations via votre <a href="{{ site_url|default:'#' }}">espace client</a>.</p>
+    <p>Cordialement,<br/>L'équipe CAMTEL OnePortal</p>
+  </body>
+</html>
