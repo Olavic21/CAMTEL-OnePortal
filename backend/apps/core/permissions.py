@@ -6,8 +6,11 @@ ADMIN_ROLES = {'SUPER_ADMIN', 'ADMIN'}
 
 class IsAdminUser(BasePermission):
     def has_permission(self, request, view):
-        role = getattr(request.user, 'role', None)
-        return bool(request.user and request.user.is_authenticated and role in ADMIN_ROLES)
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and (request.user.is_staff or getattr(request.user, 'role', None) in ADMIN_ROLES)
+        )
 
 
 class IsEditorUser(BasePermission):
@@ -22,8 +25,16 @@ class IsViewerUser(BasePermission):
 
 class IsAdminOrEditor(BasePermission):
     def has_permission(self, request, view):
-        role = getattr(request.user, 'role', None)
-        return bool(request.user and request.user.is_authenticated and role in STAFF_ROLES)
+        # Convention projet : un membre du backoffice est soit is_staff,
+        # soit porteur d'un role STAFF_ROLES explicite.
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and (
+                request.user.is_staff
+                or getattr(request.user, 'role', None) in STAFF_ROLES
+            )
+        )
 
 
 class ReadPublicWriteAdminOrEditor(BasePermission):
@@ -36,5 +47,8 @@ class ReadPublicWriteAdminOrEditor(BasePermission):
 
 class AdminOnly(BasePermission):
     def has_permission(self, request, view):
-        role = getattr(request.user, 'role', None)
-        return bool(request.user and request.user.is_authenticated and role in ADMIN_ROLES)
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and (request.user.is_staff or getattr(request.user, 'role', None) in ADMIN_ROLES)
+        )

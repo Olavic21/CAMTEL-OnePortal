@@ -123,6 +123,19 @@ class Command(BaseCommand):
         brand = entry.get('brand') or 'CAMTEL'
         if brand not in KNOWN_BRANDS:
             return None, [f'{entry["slug"]}: marque inconnue "{brand}"']
+        
+        # Règle PHASE 6 : data_origin=OFFICIAL exige source_url, source_name
+        data_origin = entry.get('data_origin', 'OFFICIAL')
+        if data_origin == 'OFFICIAL':
+            source_url = entry.get('source_url') or ''
+            source_name = entry.get('source_name') or ''
+            if not source_url:
+                return None, [f'{entry["slug"]}: data_origin=OFFICIAL exige source_url']
+            if not source_name:
+                return None, [f'{entry["slug"]}: data_origin=OFFICIAL exige source_name']
+            if not source_url.startswith(('http://', 'https://')):
+                return None, [f'{entry["slug"]}: source_url invalide pour OFFICIAL (doit commencer par http:// ou https://)']
+        
         price = entry.get('price')
         if price is not None:
             try:
@@ -145,7 +158,7 @@ class Command(BaseCommand):
         if source_url and not source_url.startswith(('http://', 'https://')):
             warnings.append(f'{entry["slug"]}: URL source invalide -> vide')
             source_url = ''
-        if not source_url:
+        if not source_url and data_origin != 'OFFICIAL':
             warnings.append(f'{entry["slug"]}: ATTENTION aucune source officielle renseignee')
         slug = slugify(entry['slug'])
         if not slug:
@@ -182,6 +195,7 @@ class Command(BaseCommand):
             'source_url': source_url,
             'source_name': entry.get('source_name', ''),
             'eligibility_note': entry.get('features_note_fr', ''),
+            'data_origin': data_origin,
         }
         return normalized, warnings
 
@@ -266,7 +280,7 @@ class Command(BaseCommand):
                 source_name=norm['source_name'],
                 source_checked_at=checked_at if norm['source_url'] else None,
                 last_verified_at=checked_at if norm['source_url'] else None,
-                data_origin=Product.DataOrigin.OFFICIAL,
+                data_origin=norm.get('data_origin', Product.DataOrigin.OFFICIAL),
                 product_type=Product.ProductType.SERVICE_OFFER,
                 is_active=True,
                 is_published=True,

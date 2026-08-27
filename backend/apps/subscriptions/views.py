@@ -32,6 +32,14 @@ class SubscriptionRequestViewSet(viewsets.ModelViewSet):
             changed_by=user,
             comment='Demande creee',
         )
+        # Phase 17 : evenement analytics metier (source serveur).
+        from apps.core.analytics import record_event
+        record_event(
+            event_type='subscription_submitted',
+            user=user,
+            product=instance.product,
+            payload={'request_number': instance.request_number},
+        )
         from apps.core.models import Notification
         Notification.objects.create(
             message=f'Nouvelle demande de souscription {instance.request_number}: {instance.product.name}',
@@ -89,6 +97,19 @@ class SubscriptionRequestViewSet(viewsets.ModelViewSet):
             reason=reason,
             comment=comment,
         )
+        # Phase 17 : evenements metier enregistres cote serveur uniquement.
+        from apps.core.analytics import record_event
+        event_type = {
+            SubscriptionRequest.Status.APPROVED: 'subscription_approved',
+            SubscriptionRequest.Status.ACTIVATED: 'subscription_activated',
+        }.get(new_status)
+        if event_type:
+            record_event(
+                event_type=event_type,
+                user=subscription.user,
+                product=subscription.product,
+                payload={'request_number': subscription.request_number},
+            )
         if subscription.user_id:
             from apps.core.models import Notification
             Notification.objects.create(

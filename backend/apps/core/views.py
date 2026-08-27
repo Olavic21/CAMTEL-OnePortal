@@ -61,6 +61,93 @@ class HealthView(APIView):
         return Response(checks, status=http_status)
 
 
+class HealthLiveView(APIView):
+    """Liveness probe : l'application tourne-t-elle ? (Phase 27).
+
+    Aucune dependance externe n'est verifiee ici — si ce endpoint repond,
+    le process Django est vivant et peut servir du trafic.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        return Response({'status': 'alive'})
+
+
+class HealthReadyView(APIView):
+    """Readiness probe : l'application peut-elle servir correctement ?
+
+    Verifie les dependances critiques : database, storage, cache.
+    Les services optionnels (LLM/chatbot) sont reportes a titre indicatif
+    mais ne font PAS echouer la readiness : un fallback existe.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        checks = {
+            'status': 'ok',
+            'database': 'ok',
+            'storage': 'ok',
+            'cache': 'ok',
+        }
+        try:
+            from django.db import connection
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT 1')
+        except Exception:
+            checks['database'] = 'error'
+            checks['status'] = 'unavailable'
+
+        try:
+            from django.conf import settings
+            import os
+            media_root = getattr(settings, 'MEDIA_ROOT', None)
+            if media_root:
+                os.makedirs(media_root, exist_ok=True)
+                if not os.access(media_root, os.W_OK):
+                    checks['storage'] = 'error'
+                    checks['status'] = 'degraded'
+        except Exception:
+            checks['storage'] = 'error'
+            checks['status'] = 'degraded'
+
+        try:
+            from django.core.cache import cache
+            probe_key = '_health_ready_probe'
+            cache.set(probe_key, 1, 10)
+            if cache.get(probe_key) != 1:
+                checks['cache'] = 'error'
+                checks['status'] = 'degraded'
+        except Exception:
+            # Le cache n'est pas critique pour readiness (fallback memoire/DB)
+            checks['cache'] = 'degraded'
+
+        http_status = status.HTTP_200_OK if checks['status'] == 'ok' else status.HTTP_503_SERVICE_UNAVAILABLE
+        return Response(checks, status=http_status)
+
+
+class CatalogDataQualityView(APIView):
+    """Dashboard qualite du catalogue commercial (Phase 31)."""
+
+    permission_classes = [IsAdminOrEditor]
+
+    def get(self, request):
+        products = Product.objects.all()
+        official = products.filter(data_origin=Product.DataOrigin.OFFICIAL)
+        return Response({
+            'total_products': products.count(),
+            'official_total': official.count(),
+            'official_verified': official.exclude(source_url='').exclude(last_verified_at=None).count(),
+            'official_without_source': official.filter(source_url='').count(),
+            'requires_verification': products.filter(status=Product.Status.REQUIRES_VERIFICATION).count(),
+            'stale': sum(1 for p in products.filter(is_published=True) if p.is_stale),
+            'without_price': products.filter(price__isnull=True).exclude(pricing_type=Product.PricingType.QUOTE).count(),
+            'price_on_request': products.filter(pricing_type=Product.PricingType.QUOTE).count(),
+            'without_image': sum(1 for p in products.prefetch_related('images') if not p.images.exists()),
+        })
+
+
 class DashboardSummaryView(APIView):
     permission_classes = [IsAdminOrEditor]
 
@@ -96,7 +183,15 @@ class ChatbotView(APIView):
         question = (request.data.get('question') or '').strip()
         if not question:
             return Response({'answer': 'Posez une question sur nos produits ou services.'})
+        from apps.core.analytics import record_event
         from apps.core.chatbot_service import ask_chatbot
+
+        # Phase 17 : chaque question alimente l'analytics (sans PII).
+        record_event(
+            event_type='chatbot_question',
+            user=getattr(request, 'user', None),
+            payload={'query': question[:200]},
+        )
         return Response(ask_chatbot(question.lower()))
 
 
@@ -174,41 +269,119 @@ class EligibilityCheckView(APIView):
 
 
 class PaymentInitiateView(APIView):
+    """Initiation d'un paiement (Phase 10 — confiance serveur).
+
+    Regles de securite :
+      - le montant n'est JAMAIS pris du client pour un paiement produit ;
+        il est lu depuis le prix officiel en base ;
+      - le flux non-produit est refuse (aucun montant libre ne doit pouvoir
+        etre iniatié sans objet metier reference) ;
+      - une cle d'idempotence (header ``Idempotency-Key`` ou champ body)
+        garantit qu'un retry client ne cree pas une seconde transaction ;
+      - chaque initiation est persistee dans :model:`apps_core.Payment`.
+    """
+
     permission_classes = [permissions.IsAuthenticated]
+    MAX_IDEMPOTENCY_KEY_LEN = 128
 
     def post(self, request):
-        product_id = request.data.get('product_id')
-        amount = request.data.get('amount')
-        if not amount and product_id:
-            try:
-                amount = Product.objects.get(pk=product_id).price
-            except Product.DoesNotExist:
-                return Response({'detail': 'Offre introuvable.'}, status=status.HTTP_404_NOT_FOUND)
-        if amount in (None, ''):
-            return Response({'detail': 'amount est requis.'}, status=status.HTTP_400_BAD_REQUEST)
+        from decimal import Decimal
 
-        from decimal import Decimal, InvalidOperation
-        try:
-            amount_decimal = Decimal(str(amount))
-        except (InvalidOperation, TypeError):
-            return Response({'detail': 'amount invalide.'}, status=status.HTTP_400_BAD_REQUEST)
-        if amount_decimal <= 0:
-            return Response({'detail': 'amount doit être positif.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        from apps.core.analytics import record_event
+        from apps.core.models import Payment
         from apps.core.v2_services import generate_reference, get_payment_provider
+
+        product_id = request.data.get('product_id')
+
+        # Phase 10 : montant 100% determine cote serveur depuis l'offre.
+        if not product_id:
+            return Response(
+                {'detail': "product_id est requis. Le montant n'est jamais accepté du client."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            product = Product.objects.get(pk=product_id)
+        except Product.DoesNotExist:
+            return Response({'detail': 'Offre introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if product.price is None:
+            return Response(
+                {'detail': 'Cette offre ne peut pas être payée en ligne (Prix sur demande).'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        amount_decimal = Decimal(product.price)
+        currency = product.currency
+        if amount_decimal <= 0:
+            return Response({'detail': 'Montant du produit invalide.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # --- Idempotence -------------------------------------------------
+        idempotency_key = (
+            request.headers.get('Idempotency-Key')
+            or request.data.get('idempotency_key')
+            or ''
+        )
+        idempotency_key = str(idempotency_key).strip()[: self.MAX_IDEMPOTENCY_KEY_LEN]
+        if idempotency_key:
+            existing = Payment.objects.filter(
+                user=request.user, idempotency_key=idempotency_key,
+            ).first()
+            if existing is not None:
+                # Rejeu identique -> on renvoie la transaction existante
+                # SANS re-initier une deuxieme execution aupres du provider.
+                return Response(self._payment_payload(existing), status=status.HTTP_200_OK)
+
         provider = get_payment_provider()
+        reference = generate_reference('PAY')
         result = provider.initiate_payment(
             amount=amount_decimal,
-            currency=request.data.get('currency') or 'XAF',
+            currency=currency,
             customer={
                 'id': request.user.pk,
                 'email': request.user.email,
                 'username': request.user.username,
             },
-            reference=request.data.get('reference') or generate_reference('PAY'),
-            metadata={'product_id': product_id, **(request.data.get('metadata') or {})},
+            reference=reference,
+            metadata={'product_id': product_id},
         )
-        return Response(result, status=status.HTTP_201_CREATED)
+
+        payment = Payment.objects.create(
+            reference=reference,
+            idempotency_key=idempotency_key,
+            transaction_id=result.get('transaction_id', ''),
+            provider=provider.name,
+            product=product,
+            user=request.user,
+            amount=amount_decimal,
+            currency=currency,
+            status=Payment.Status.PENDING,
+            metadata=result.get('metadata', {}),
+        )
+        record_event(event_type='payment_started', user=request.user, product=product)
+
+        return Response(self._payment_payload(payment, extra=result), status=status.HTTP_201_CREATED)
+
+    @staticmethod
+    def _payment_payload(payment, extra=None):
+        payload = {
+            'id': payment.pk,
+            'provider': payment.provider,
+            'transaction_id': payment.transaction_id,
+            'reference': payment.reference,
+            'status': payment.status,
+            'amount': str(payment.amount),
+            'currency': payment.currency,
+            'created_at': payment.created_at.isoformat() if payment.created_at else None,
+        }
+        if extra:
+            for key in ('payment_url', 'metadata'):
+                if key in extra:
+                    payload[key] = extra[key]
+        if payment.provider == 'mock':
+            payload['simulation'] = (
+                "Simulation — aucune transaction réelle n'est effectuée."
+            )
+        return payload
 
 
 class DocumentSearchView(APIView):
@@ -271,12 +444,35 @@ class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
+    """Centre de notifications (Phase 16).
+
+    Un utilisateur ne voit et ne manipule QUE ses propres notifications ;
+    les staff/admin voient en plus les notifications globales (user=None).
+    Corrige l'exposition anterieure de toutes les notifications à tout
+    utilisateur authentifie.
+    """
+
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
-    permission_classes = [IsAdminOrEditor]
+
+    def get_permissions(self):
+        return [permissions.IsAuthenticated()]
+
+    def _is_admin(self, user) -> bool:
+        return bool(
+            user.is_staff
+            or getattr(user, 'role', None) in {'SUPER_ADMIN', 'ADMIN'}
+        )
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        if not self._is_admin(self.request.user):
+            queryset = queryset.filter(user=self.request.user)
+        elif self.request.query_params.get('scope') != 'all':
+            # Admin par defaut : ses notifications + les globales (user=None).
+            queryset = queryset.filter(
+                Q(user=self.request.user) | Q(user__isnull=True),
+            )
         if self.request.query_params.get('unread') == 'true':
             queryset = queryset.filter(is_read=False)
         return queryset
@@ -295,18 +491,45 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
 
 class AnalyticsEventCreateView(APIView):
-    """Collecte d'un evenement analytique public (offer_view, search, faq...)."""
+    """Collecte d'un evenement analytique public (Phase 18 — validation stricte).
+
+    Seuls les evenements provenant du navigateur sont acceptes ici ; les
+    evenements metier (subscription_approved/activated, payment_*) sont
+    enregistres cote serveur et ne peuvent pas etre falsifies par un client.
+    """
 
     permission_classes = [permissions.AllowAny]
     throttle_classes = [SearchRateThrottle]
+
+    CLIENT_EVENT_TYPES = frozenset({
+        'offer_view',
+        'offer_compare',
+        'subscription_started',
+        'search',
+        'faq_view',
+        'chatbot_question',
+        'recommendation_clicked',
+    })
 
     def post(self, request):
         from apps.core.analytics import record_event
 
         event_type = (request.data.get('event_type') or '').strip()
+        if event_type not in self.CLIENT_EVENT_TYPES:
+            return Response(
+                {'detail': "Type d'evenement inconnu ou non autorise."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         product = None
         product_id = request.data.get('product_id')
-        if product_id:
+        if product_id not in (None, ''):
+            try:
+                product_id = int(product_id)
+            except (TypeError, ValueError):
+                return Response(
+                    {'detail': 'product_id invalide.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             product = Product.objects.filter(pk=product_id).first()
         event = record_event(
             event_type=event_type,
@@ -316,22 +539,28 @@ class AnalyticsEventCreateView(APIView):
         )
         if event is None:
             return Response(
-                {'detail': 'Type d\'evenement inconnu.'},
+                {'detail': 'Evenement refuse (payload invalide).'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         return Response(AnalyticsEventSerializer(event).data, status=status.HTTP_201_CREATED)
 
 
 class AnalyticsSummaryView(APIView):
-    """Resume analytique admin : KPIs, top offres, top categories, recherches."""
+    """Resume analytique admin : KPIs, top offres, top categories, recherches
+    et funnel de conversion (Phase 17) avec filtres date/categorie/produit/segment."""
 
     permission_classes = [IsAdminOrEditor]
 
     def get(self, request):
         from apps.core.analytics import analytics_summary
 
-        days = request.query_params.get('days', '30')
-        return Response(analytics_summary(days=days))
+        params = request.query_params
+        return Response(analytics_summary(
+            days=params.get('days', '30'),
+            category=(params.get('category') or '').strip(),
+            product=(params.get('product') or '').strip(),
+            segment=(params.get('segment') or '').strip(),
+        ))
 
 
 class SupportTicketViewSet(viewsets.ModelViewSet):
@@ -339,11 +568,26 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
     serializer_class = SupportTicketSerializer
 
     def get_permissions(self):
-        if self.action in {'create', 'my_tickets', 'reply'}:
+        if self.action in {'create', 'my_tickets', 'reply', 'retrieve'}:
             return [permissions.IsAuthenticated()]
-        if self.action in {'list', 'retrieve', 'update', 'partial_update', 'destroy'}:
+        if self.action in {'list', 'update', 'partial_update', 'destroy'}:
             return [AdminOnly()]
         return [AdminOnly()]
+
+    def get_queryset(self):
+        """Phase 34 (IDOR) : un client ne peut accéder qu'à SES tickets.
+
+        retrieve/reply/my-tickets sont scopés au propriétaire pour les
+        non-admins ; la liste reste reservee aux admins (les clients passent
+        par my-tickets).
+        """
+        queryset = super().get_queryset()
+        user = self.request.user
+        if getattr(user, 'is_staff', False) or getattr(user, 'role', None) in {'SUPER_ADMIN', 'ADMIN'}:
+            return queryset
+        if self.action in {'retrieve', 'reply', 'my_tickets'}:
+            return queryset.filter(client=user)
+        return queryset.none()
 
     def perform_create(self, serializer):
         serializer.save(client=self.request.user)
@@ -355,7 +599,13 @@ class SupportTicketViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='reply')
     def reply(self, request, pk=None):
-        ticket = self.get_object()
+        # Recuperation NON scopee volontaire : on distingue 403 (ticket d'un
+        # autre utilisateur) de 404 (ticket inexistant) pour que le client
+        # legitime recoive une erreur explicite (Phase 15 / Phase 34).
+        try:
+            ticket = SupportTicket.objects.get(pk=pk)
+        except SupportTicket.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         is_staff = getattr(request.user, 'role', '') in {'SUPER_ADMIN', 'ADMIN', 'PRODUCT_MANAGER', 'EDITOR'}
         if not is_staff and ticket.client_id != request.user.id:
             return Response({'detail': 'Accès interdit à ce ticket.'}, status=status.HTTP_403_FORBIDDEN)

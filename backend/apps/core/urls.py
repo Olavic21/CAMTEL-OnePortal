@@ -5,10 +5,13 @@ from .views import (
     ActivityLogViewSet,
     AnalyticsEventCreateView,
     AnalyticsSummaryView,
+    CatalogDataQualityView,
     ChatbotView,
     DashboardSummaryView,
     DocumentSearchView,
     EligibilityCheckView,
+    HealthLiveView,
+    HealthReadyView,
     HealthView,
     NotificationViewSet,
     PaymentInitiateView,
@@ -25,6 +28,9 @@ router.register(r'tickets', SupportTicketViewSet, basename='support-ticket')
 
 urlpatterns = [
     path('health/', HealthView.as_view(), name='health'),
+    path('health/live/', HealthLiveView.as_view(), name='health-live'),
+    path('health/ready/', HealthReadyView.as_view(), name='health-ready'),
+    path('catalog/quality/', CatalogDataQualityView.as_view(), name='catalog-quality'),
     path('dashboard/summary/', DashboardSummaryView.as_view(), name='dashboard-summary'),
     path('search/autocomplete/', SearchAutocompleteView.as_view(), name='search-autocomplete'),
     path('chatbot/ask/', ChatbotView.as_view(), name='chatbot-ask'),

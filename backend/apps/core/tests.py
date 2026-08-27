@@ -1,11 +1,16 @@
+import json
+import os
+import tempfile
 import unittest
+from io import StringIO
 
 from django.contrib.auth import get_user_model
+from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
 from rest_framework.test import APITestCase
 
 from apps.categories.models import Category
-from apps.core.models import ActivityLog, AnalyticsEvent, Notification, SupportTicket, TicketMessage
+from apps.core.models import ActivityLog, AnalyticsEvent, Notification, Payment, SupportTicket, TicketMessage
 from apps.core.providers import MockLLMProvider, build_rag_prompt, get_llm_provider, run_rag_pipeline
 from apps.core.v2_services import DocumentStore, get_email_provider, get_payment_provider, recommend_products
 from apps.core.v3_services import (
@@ -141,6 +146,61 @@ class ChatbotViewTest(APITestCase):
         self.assertEqual(response.data['source'], 'mock')
         self.assertIn('REPONSE_FACTICE', response.data['answer'])
         self.assertEqual(response.data['model'], 'mock-gpt')
+
+    def _create_official_vps(self, slug_suffix='m', price='25000.00'):
+        from django.utils import timezone as tz
+        return Product.objects.create(
+            name=f'CB VPS {slug_suffix.upper()}',
+            slug=f'cb-vps-{slug_suffix}-chatbot',
+            description='Serveur prive virtuel CAMTEL Hosting.',
+            price=price,
+            currency='XAF',
+            category=self.category,
+            is_published=True,
+            brand='HOSTING',
+            data_origin='OFFICIAL',
+            pricing_type='FIXED',
+            source_name='CAMTEL Hosting',
+            source_url='https://hosting.camtel.cm/offres-vps',
+            source_checked_at=tz.now(),
+            last_verified_at=tz.now(),
+        )
+
+    @override_settings(CHATBOT_PROVIDER='mock', CHATBOT_MODEL='mock-gpt')
+    def test_price_intent_answers_from_structured_db_with_source(self):
+        """Phase 19 : « Combien coûte le CB VPS M ? » ne depend PAS du RAG.
+
+        La reponse cite le prix officiel stocke en base, la source officielle
+        et la date de verification, et expose un lien vers l'offre.
+        """
+        product = self._create_official_vps()
+        response = self.client.post(
+            '/api/v1/chatbot/ask/',
+            {'question': 'Combien coûte le CB VPS M ?'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['source'], 'product')
+        self.assertIn('25000 XAF', response.data['answer'])
+        self.assertIn('CAMTEL Hosting', response.data['answer'])
+        self.assertEqual(response.data['product']['id'], product.id)
+        self.assertEqual(response.data['offer_link'], f'/offres/{product.slug}')
+        self.assertEqual(response.data['see_offer_label'], "[Voir l'offre]")
+
+    @override_settings(CHATBOT_PROVIDER='mock', CHATBOT_MODEL='mock-gpt')
+    def test_price_intent_with_ambiguous_product_falls_back_to_rag(self):
+        """Plusieurs candidats du meme nom (S/M/L) -> aucune reponse prix
+        fabriquee : on retombe sur le pipeline RAG configure."""
+        self._create_official_vps('m')
+        self._create_official_vps('l', price='45000.00')
+        response = self.client.post(
+            '/api/v1/chatbot/ask/',
+            {'question': 'Combien coute le CB VPS ?'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        # Le pipeline mock repond (pas de prix invente depuis une offre ambigue).
+        self.assertEqual(response.data['source'], 'mock')
 
 
     @override_settings(
@@ -401,6 +461,83 @@ class V2EndpointsTest(APITestCase):
         self.assertEqual(response.data['provider'], 'mock')
         self.assertTrue(response.data['transaction_id'].startswith('PAY-'))
 
+    def test_payment_amount_is_always_server_side(self):
+        """Phase 10 : un montant fourni par le client est ignore."""
+        from decimal import Decimal
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            '/api/v1/payments/initiate/',
+            {'product_id': self.product.id, 'amount': 1},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        # Le montant renvoye (et persiste) est celui du produit officiel.
+        self.assertEqual(Decimal(str(response.data['amount'])), Decimal('12000.00'))
+        self.assertEqual(Payment.objects.count(), 1)
+        payment = Payment.objects.get()
+        self.assertEqual(payment.amount, Decimal('12000.00'))
+        self.assertEqual(payment.status, Payment.Status.PENDING)
+
+    def test_payment_idempotency_key_reuse_returns_same_transaction(self):
+        """Phase 10 : un retry avec la meme cle ne cree pas une 2e transaction."""
+        self.client.force_authenticate(user=self.user)
+        first = self.client.post(
+            '/api/v1/payments/initiate/',
+            {'product_id': self.product.id, 'idempotency_key': 'retry-123'},
+            format='json',
+        )
+        self.assertEqual(first.status_code, 201)
+        second = self.client.post(
+            '/api/v1/payments/initiate/',
+            {'product_id': self.product.id, 'idempotency_key': 'retry-123'},
+            format='json',
+        )
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.data['reference'], first.data['reference'])
+        self.assertEqual(Payment.objects.count(), 1)
+
+    def test_payment_without_product_rejected(self):
+        """Phase 10 : aucun paiement sans objet produit (pas de montant libre)."""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            '/api/v1/payments/initiate/',
+            {'amount': 5000},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_mock_payment_flags_simulation(self):
+        """Phase 11 : la reponse mock est clairement identifiee comme simulation."""
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/v1/payments/initiate/', {'product_id': self.product.id}, format='json')
+        self.assertIn('simulation', response.data)
+        self.assertIn('Simulation', response.data['simulation'])
+
+    def test_health_live_and_ready_endpoints(self):
+        """Phase 27 : liveness simple + readiness base/storage/cache."""
+        live = self.client.get('/api/v1/health/live/')
+        self.assertEqual(live.status_code, 200)
+        self.assertEqual(live.data['status'], 'alive')
+
+        ready = self.client.get('/api/v1/health/ready/')
+        self.assertEqual(ready.status_code, 200)
+        self.assertEqual(ready.data['status'], 'ok')
+        self.assertEqual(ready.data['database'], 'ok')
+
+    def test_catalog_quality_dashboard_permissions(self):
+        """Phase 31 : dashboard qualite reserve aux admins, donnees coherentes."""
+        anon = self.client.get('/api/v1/catalog/quality/')
+        self.assertIn(anon.status_code, (401, 403))
+
+        User.objects.create_superuser('admin-q', 'pass', 'admin-q@example.com')
+        admin_user = User.objects.get(username='admin-q')
+        self.client.force_authenticate(user=admin_user)
+        response = self.client.get('/api/v1/catalog/quality/')
+        self.assertEqual(response.status_code, 200)
+        self.assertGreaterEqual(response.data['total_products'], 1)
+        self.assertIn('official_verified', response.data)
+        self.assertIn('requires_verification', response.data)
+
     def test_documents_endpoint(self):
         response = self.client.get('/api/v1/documents/?q=souscription')
         self.assertEqual(response.status_code, 200)
@@ -513,6 +650,12 @@ class AnalyticsEventViewSetTest(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertGreaterEqual(response.data['counts']['offer_view'], 1)
         self.assertIn('top_search_queries', response.data)
+        # Phase 17 : funnel complet Views -> Started -> Submitted -> Approved -> Activated.
+        funnel = response.data.get('funnel', {})
+        for key in ('views', 'subscription_started', 'submitted', 'approved',
+                    'activated', 'view_to_start', 'global_conversion'):
+            self.assertIn(key, funnel)
+        self.assertEqual(funnel['views'], 1)
 
 
 class SupportTicketViewSetTest(APITestCase):
@@ -670,4 +813,84 @@ class V3ServicesTest(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(result['sms']['provider'], 'console')
         self.assertTrue(result['sms']['sent'])
+        self.assertNotIn('skipped', result)
+        self.assertEqual(result['email']['sent'], 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(result['sms']['provider'], 'console')
+        self.assertTrue(result['sms']['sent'])
+
+
+class CatalogDiffCommandTest(TestCase):
+    """Phase 7 : diff entre deux snapshots catalogue (sans DB, hors ligne)."""
+
+    @staticmethod
+    def _write_snapshot(root, name, offers, with_bom=False):
+        snapshot = os.path.join(root, name)
+        os.makedirs(snapshot, exist_ok=True)
+        payload = json.dumps({'offers': offers}, ensure_ascii=False, indent=2)
+        encoding = 'utf-8-sig' if with_bom else 'utf-8'
+        with open(os.path.join(snapshot, 'offers.json'), 'w', encoding=encoding) as fh:
+            fh.write(payload)
+        return snapshot
+
+    def test_diff_reports_new_updated_removed_unchanged(self):
+        base_offer = {
+            'slug': 'blue-one-m', 'name': 'Blue One M', 'brand': 'BLUE',
+            'category_slug': 'mobile-blue', 'price': 3000, 'currency': 'XAF',
+            'source_url': 'https://blue.camtel.cm/', 'source_name': 'Blue by CAMTEL',
+        }
+        tmp_root = tempfile.mkdtemp()
+        old_snapshot = self._write_snapshot(tmp_root, '2026-01-01', [
+            base_offer,
+            {**base_offer, 'slug': 'fibre-home-100', 'name': 'Fibre Home 100'},
+            # RETIREE du nouveau snapshot -> REMOVED
+            {**base_offer, 'slug': 'solo-ancien', 'name': 'Solo Ancien'},
+        ])
+        new_snapshot = self._write_snapshot(tmp_root, '2026-02-01', [
+            # UPDATED : prix 3000 -> 3500
+            {**base_offer, 'price': 3500},
+            # UNCHANGED
+            {**base_offer, 'slug': 'fibre-home-100', 'name': 'Fibre Home 100'},
+            # NEW
+            {**base_offer, 'slug': 'blue-one-l', 'name': 'Blue One L'},
+        ], with_bom=True)
+
+        out = StringIO()
+        call_command(
+            'catalog_diff', '--from', old_snapshot, '--to', new_snapshot,
+            '--format', 'json', stdout=out,
+        )
+        report = json.loads(out.getvalue())
+
+        self.assertEqual(report['summary'], {'NEW': 1, 'UPDATED': 1, 'REMOVED': 1, 'UNCHANGED': 1})
+        self.assertEqual(report['diffs']['NEW'][0]['slug'], 'blue-one-l')
+        self.assertEqual(report['diffs']['REMOVED'][0]['slug'], 'solo-ancien')
+        updated = report['diffs']['UPDATED'][0]
+        self.assertEqual(updated['slug'], 'blue-one-m')
+        price_change = next(c for c in updated['changes'] if c['field'] == 'PRICE')
+        self.assertEqual((price_change['old'], price_change['new']), ('3000', '3500'))
+        self.assertEqual(report['unchanged_slugs'], ['fibre-home-100'])
+
+    def test_identical_snapshots_are_all_unchanged(self):
+        offer = {
+            'slug': 'cb-vps-m', 'name': 'CB VPS M', 'brand': 'CAMTEL',
+            'category_slug': 'data-center-hosting',
+            'source_url': 'https://hosting.camtel.cm/', 'source_name': 'CAMTEL Hosting',
+        }
+        tmp_root = tempfile.mkdtemp()
+        snap_a = self._write_snapshot(tmp_root, 'a', [offer])
+        snap_b = self._write_snapshot(tmp_root, 'b', [offer])
+
+        out = StringIO()
+        call_command('catalog_diff', '--from', snap_a, '--to', snap_b, '--format', 'json', stdout=out)
+        report = json.loads(out.getvalue())
+        self.assertEqual(report['summary'], {'NEW': 0, 'UPDATED': 0, 'REMOVED': 0, 'UNCHANGED': 1})
+
+    def test_unknown_snapshot_raises_command_error(self):
+        out = StringIO()
+        with self.assertRaises(CommandError):
+            call_command(
+                'catalog_diff', '--from', '/does/not/exist-a', '--to', '/does/not/exist-b',
+                stdout=out,
+            )
 
