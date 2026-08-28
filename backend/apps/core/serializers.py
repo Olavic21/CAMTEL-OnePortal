@@ -24,9 +24,11 @@ class NotificationSerializer(serializers.ModelSerializer):
         model = Notification
         fields = (
             'id',
+            'channel',
             'message',
             'type',
             'is_read',
+            'read_at',
             'link',
             'created_at',
         )

@@ -1,5 +1,6 @@
 from django.db.models import Q
 from django.http import HttpResponse
+from django.utils import timezone
 from io import BytesIO
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -9,7 +10,7 @@ from rest_framework.views import APIView
 from apps.contacts.models import ContactMessage
 from apps.news.models import News
 from apps.news.serializers import NewsSerializer
-from apps.products.models import Product
+from apps.products.models import Product, Service
 from apps.products.serializers import ProductSerializer
 from apps.promotions.models import Promotion
 
@@ -194,6 +195,122 @@ class ChatbotView(APIView):
         )
         return Response(ask_chatbot(question.lower()))
 
+
+
+class GlobalSearchView(APIView):
+    """Recherche globale structuree (cahier des charges #16/#29).
+
+    GET /api/v1/search/?q=...&service=...&segment=...&price_min=...&price_max=...
+        &availability=...&status=...&product_type=...&page=1
+
+    Retourne des resultats structures, sources par type (service/product/faq),
+    avec pagination obligatoire. Public.
+    """
+
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [SearchRateThrottle]
+    PAGE_SIZE = 20
+
+    def get(self, request):
+        from apps.products.models import ProductFAQ
+
+        params = request.query_params
+        query = (params.get('q') or '').strip()
+
+        results = []
+
+        # 1. Services (si filtre service absent, listes toutes).
+        services = Service.objects.filter(status=Service.Status.ACTIVE)
+        if query:
+            services = services.filter(Q(name__icontains=query) | Q(name_en__icontains=query) | Q(description__icontains=query))
+        for s in services.order_by('display_order', 'name'):
+            results.append({
+                'type': 'service',
+                'id': s.id,
+                'slug': s.slug,
+                'title': s.name,
+                'name_en': s.name_en,
+                'url': f'/api/v1/services/{s.slug}/',
+            })
+
+        # 2. Produits (catalogue publie, filtres).
+        products = Product.objects.filter(is_published=True, is_active=True)
+        if query:
+            products = products.filter(
+                Q(name__icontains=query) | Q(name_en__icontains=query)
+                | Q(description__icontains=query) | Q(slug__icontains=query)
+            )
+        service = params.get('service')
+        if service:
+            products = products.filter(service__slug=service)
+        segment = params.get('segment')
+        if segment:
+            seg_upper = segment.upper()
+            legacy_map = {'GRAND_PUBLIC': 'PARTICULIER', 'ENTREPRISE': 'ENTREPRISE'}
+            code = legacy_map.get(seg_upper, seg_upper)
+            products = products.filter(
+                Q(segment=code) | Q(segments__code=code),
+            ).distinct()
+        if params.get('availability'):
+            products = products.filter(availability=params['availability'].upper())
+        if params.get('status'):
+            products = products.filter(status=params['status'].upper())
+        if params.get('product_type'):
+            products = products.filter(product_type=params['product_type'].upper())
+        price_min = params.get('price_min')
+        if price_min:
+            products = products.filter(price__gte=price_min)
+        price_max = params.get('price_max')
+        if price_max:
+            products = products.filter(price__lte=price_max)
+
+        for p in products.select_related('service').prefetch_related('segments')[:200]:
+            results.append({
+                'type': 'product',
+                'id': p.id,
+                'slug': p.slug,
+                'title': p.name,
+                'name_en': p.name_en,
+                'service': p.service.slug if p.service else None,
+                'price': p.price,
+                'currency': p.currency,
+                'pricing_type': p.pricing_type,
+                'url': f'/api/v1/products/{p.slug}/',
+            })
+
+        # 3. FAQ produits.
+        faqs = ProductFAQ.objects.all()
+        if query:
+            faqs = faqs.filter(Q(question__icontains=query) | Q(answer__icontains=query))
+        if service:
+            faqs = faqs.filter(product__service__slug=service)
+        for f in faqs.select_related('product')[:100]:
+            results.append({
+                'type': 'faq',
+                'id': f.id,
+                'title': f.question,
+                'product_slug': f.product.slug,
+                'url': f'/api/v1/products/{f.product.slug}/',
+            })
+
+        # Pagination.
+        try:
+            page = max(int(params.get('page', 1)), 1)
+        except (TypeError, ValueError):
+            page = 1
+        total = len(results)
+        start = (page - 1) * self.PAGE_SIZE
+        page_results = results[start:start + self.PAGE_SIZE]
+
+        return Response({
+            'query': query,
+            'count': total,
+            'page': page,
+            'page_size': self.PAGE_SIZE,
+            'next': (page + 1) if start + self.PAGE_SIZE < total else None,
+            'previous': (page - 1) if page > 1 else None,
+            'results': page_results,
+        })
 
 
 class SearchAutocompleteView(APIView):
@@ -474,19 +591,23 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 Q(user=self.request.user) | Q(user__isnull=True),
             )
         if self.request.query_params.get('unread') == 'true':
-            queryset = queryset.filter(is_read=False)
+                    queryset = queryset.filter(is_read=False)
         return queryset
 
     @action(detail=True, methods=['post'], url_path='mark-read')
     def mark_read(self, request, pk=None):
         notification = self.get_object()
         notification.is_read = True
-        notification.save(update_fields=['is_read'])
+        if not notification.read_at:
+            notification.read_at = timezone.now()
+        notification.save(update_fields=['is_read', 'read_at'])
         return Response(NotificationSerializer(notification).data)
 
     @action(detail=False, methods=['post'], url_path='mark-all-read')
     def mark_all_read(self, request):
-        updated = self.get_queryset().filter(is_read=False).update(is_read=True)
+        updated = self.get_queryset().filter(is_read=False).update(
+            is_read=True, read_at=timezone.now(),
+        )
         return Response({'updated': updated})
 
 
@@ -504,6 +625,9 @@ class AnalyticsEventCreateView(APIView):
     CLIENT_EVENT_TYPES = frozenset({
         'offer_view',
         'offer_compare',
+        'service_view',
+        'product_view',
+        'comparison',
         'subscription_started',
         'search',
         'faq_view',

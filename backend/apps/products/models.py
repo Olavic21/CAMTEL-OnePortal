@@ -1,9 +1,80 @@
+from django.conf import settings
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.db import models
 from django.db.models.signals import post_save
+from django.utils import timezone
 
 from apps.categories.models import Category
+
+
+class Service(models.Model):
+    """Verticale commerciale officielle OnePortal (taxonomie V4).
+
+    SERVICES = FIXES | MOBILES | TRANSPORT | DATA_CENTER.
+    "ENTREPRISE" n'est PAS un service : c'est un segment (voir Segment).
+
+    Slugs stables exposes a l'API : fixes, mobiles, transport, data-center.
+    Codes internes : FIXED, MOBILE, TRANSPORT, DATA_CENTER.
+    """
+
+    class Code(models.TextChoices):
+        FIXED = 'FIXED', 'Fixes'
+        MOBILE = 'MOBILE', 'Mobiles'
+        TRANSPORT = 'TRANSPORT', 'Transport'
+        DATA_CENTER = 'DATA_CENTER', 'Data Center'
+
+    class Status(models.TextChoices):
+        ACTIVE = 'ACTIVE', 'Active'
+        INACTIVE = 'INACTIVE', 'Inactive'
+
+    slug = models.SlugField(max_length=64, unique=True)
+    code = models.CharField(max_length=32, choices=Code.choices, unique=True)
+    name = models.CharField(max_length=128)
+    name_en = models.CharField(max_length=128, blank=True, default='')
+    description = models.TextField(blank=True, default='')
+    description_en = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
+    display_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['display_order', 'name']
+        indexes = [models.Index(fields=['status'])]
+
+    def __str__(self):
+        return f'{self.code} ({self.slug})'
+
+
+class Segment(models.Model):
+    """Segment client OnePortal : PARTICULIER | PROFESSIONNEL | ENTREPRISE |
+    ADMINISTRATION.
+
+    Un produit peut cibler PLUSIEURS segments (voir Product.segments M2M).
+    Le champ historique Product.segment (CharField) reste expose comme
+    "segment principal" pour compatibilite frontend.
+    """
+
+    class Code(models.TextChoices):
+        PARTICULIER = 'PARTICULIER', 'Particulier'
+        PROFESSIONNEL = 'PROFESSIONNEL', 'Professionnel'
+        ENTREPRISE = 'ENTREPRISE', 'Entreprise'
+        ADMINISTRATION = 'ADMINISTRATION', 'Administration'
+
+    slug = models.SlugField(max_length=64, unique=True)
+    code = models.CharField(max_length=32, choices=Code.choices, unique=True)
+    name = models.CharField(max_length=128)
+    name_en = models.CharField(max_length=128, blank=True, default='')
+    display_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['display_order', 'name']
+
+    def __str__(self):
+        return self.code
 
 
 class Product(models.Model):
@@ -59,9 +130,17 @@ class Product(models.Model):
         REQUIRES_VERIFICATION = 'REQUIRES_VERIFICATION', 'Requires verification'
 
     class PricingType(models.TextChoices):
-        FIXED = 'FIXED', 'Fixed price'
+        """Taxonomie tarifaire cahier des charges #15.
+
+        FIXED equivaut a FIXED_PRICE ; MONTHLY/YEARLY sont portes par
+        billing_period ; price reste NULL pour QUOTE (prix inconnu -> jamais 0).
+        """
+
+        FIXED = 'FIXED', 'Fixed price (FIXED_PRICE)'
         QUOTE = 'QUOTE', 'Price on request (quote)'
         FREE = 'FREE', 'Free'
+        INSTALLATION = 'INSTALLATION', 'Installation fee'
+        USAGE_BASED = 'USAGE_BASED', 'Usage based'
 
     class SubscriptionMethod(models.TextChoices):
         ONLINE = 'ONLINE', 'Online'
@@ -71,11 +150,25 @@ class Product(models.Model):
         CONTACT = 'CONTACT', 'Contact / quote'
 
     class DataOrigin(models.TextChoices):
-        """Provenance de la donnee commerciale (#37 : isoler les donnees demo)."""
+        """Provenance de la donnee commerciale (#37 + qualite #11/#12).
+
+        OFFICIAL    : source officielle CAMTEL (source_url/name/last_verified_at
+                      obligatoires — controle par validate_camtel_data).
+        MANUAL      : saisie manuelle back-office.
+        HISTORICAL  : donnee historique, ne doit jamais etre presentee comme
+                      actuelle (historical_since renseigne).
+        DEMO        : donnee de demonstration (marquee explicitement).
+        MOCK        : donnee de simulation (mock=true) — jamais presentee
+                      comme reelle.
+        REQUIRES_VALIDATION : donnee non confirmee (REQUIRES_BUSINESS_VALIDATION).
+        """
 
         OFFICIAL = 'OFFICIAL', 'Official CAMTEL source'
         DEMO = 'DEMO', 'Demo data'
         MANUAL = 'MANUAL', 'Manual entry'
+        HISTORICAL = 'HISTORICAL', 'Historical data'
+        MOCK = 'MOCK', 'Mock / simulated data'
+        REQUIRES_VALIDATION = 'REQUIRES_VALIDATION', 'Requires business validation'
 
 
     class Technology(models.TextChoices):
@@ -111,6 +204,19 @@ class Product(models.Model):
     price_unit = models.CharField(max_length=32, blank=True, default='FCFA')
     currency = models.CharField(max_length=8, default='XAF')
     category = models.ForeignKey(Category, related_name='products', on_delete=models.CASCADE)
+    # Taxonomie V4 : verticale de service officielle (fixes/mobiles/transport/
+    # data-center). Nullable pour tolerate les produits legacy non classes ;
+    # validate_camtel_data remonte les produits sans service en ERROR.
+    service = models.ForeignKey(
+        Service, related_name='products', on_delete=models.PROTECT,
+        null=True, blank=True, default=None,
+    )
+    # Segments cibles (multi-segments). Le CharField `segment` ci-dessous reste
+    # le "segment principal" expose au frontend legacy ; il est resynchronise
+    # a l'enregistrement avec le premier element de `segments`.
+    # NB : reference string 'products.Segment' — l'enum imbrique Product.Segment
+    # masque le modele module-level dans ce corps de classe.
+    segments = models.ManyToManyField('products.Segment', related_name='products', blank=True)
     # Dimensionnement offre (service vs produit materiel). Le stock n'a de sens
     # que pour PRODUCTS_PHYSIQUE : pour les services il est desactive.
     product_type = models.CharField(max_length=32, choices=ProductType.choices, default=ProductType.SERVICE_OFFER)
@@ -157,7 +263,10 @@ class Product(models.Model):
     source_checked_at = models.DateField(null=True, blank=True)
     last_verified_at = models.DateField(null=True, blank=True)
     source_version = models.CharField(max_length=64, blank=True, default='')
-    data_origin = models.CharField(max_length=16, choices=DataOrigin.choices, default=DataOrigin.MANUAL)
+    data_origin = models.CharField(max_length=32, choices=DataOrigin.choices, default=DataOrigin.MANUAL)
+    # Donnee HISTORICAL : date a partir de laquelle la donnee n'est plus
+    # consideree comme actuelle (cahier des charges #11/#36).
+    historical_since = models.DateField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -173,11 +282,58 @@ class Product(models.Model):
             models.Index(fields=['category']),
             models.Index(fields=['offer_type']),
             models.Index(fields=['segment']),
+            models.Index(fields=['service']),
+            models.Index(fields=['data_origin']),
             GinIndex(fields=['search_vector']),
         ]
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        # Taxonomie V4 : resynchronise le segment principal (CharField legacy)
+        # avec le premier segment du M2M (par display_order) lorsque celui-ci
+        # est alimente. A la creation, le M2M n'est pas encore renseigne :
+        # utiliser sync_segments() apres le save initial.
+        if self.pk:
+            first = (
+                Segment.objects.filter(products=self)
+                .order_by('display_order', 'code')
+                .first()
+            )
+            if first is not None and self.segment != first.code:
+                self.segment = first.code
+        # Auto-resolution du service (taxonomie V4) : categorie puis offer_type
+        # determinent la verticale ; les cas ambigus restent NULL et sont
+        # remontes par validate_camtel_data (REQUIRES_BUSINESS_VALIDATION).
+        if self.service_id is None:
+            from apps.products.taxonomy import resolve_service_slug
+
+            service_slug = resolve_service_slug(
+                getattr(self.category, 'slug', '') or '', self.offer_type,
+            )
+            if service_slug:
+                service = Service.objects.filter(slug=service_slug).first()
+                if service is not None:
+                    self.service = service
+        super().save(*args, **kwargs)
+
+    def sync_segments(self, segment_codes):
+        """Definit les segments du produit et resynchronise le segment principal.
+
+        `segment_codes` : iterable de codes Segment (PARTICULIER, ...).
+        Idempotent : les doublons sont ignores.
+        """
+        codes = [str(c).upper() for c in segment_codes if c]
+        segments = list(Segment.objects.filter(code__in=codes))
+        if not segments:
+            return False
+        self.segments.set(segments)
+        primary = min(segments, key=lambda s: (s.display_order, s.code))
+        if self.segment != primary.code:
+            self.segment = primary.code
+            self.save(update_fields=['segment', 'updated_at'])
+        return True
 
     @property
     def manage_stock(self) -> bool:
@@ -218,6 +374,15 @@ class Product(models.Model):
         return 'subscribe'
 
 
+# Provenances non commerciales (demo/mock/historique) — definies APRES la
+# declaration de l'enum TextChoices (les membres ne sont pas accessibles dans
+# le corps de la classe).
+Product.DataOrigin.DEMO_ORIGINS = frozenset({
+    Product.DataOrigin.DEMO,
+    Product.DataOrigin.MOCK,
+    Product.DataOrigin.HISTORICAL,
+})
+
 
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, related_name='images', on_delete=models.CASCADE)
@@ -249,6 +414,114 @@ class ProductFAQ(models.Model):
 
     def __str__(self):
         return f"FAQ: {self.question}"
+
+
+class ProductSource(models.Model):
+    """Source de verite d'un produit (cahier des charges #12).
+
+    Complete les champs denormalises de Product (source_url/source_name)
+    par une entite structuree permettant l'historisation des verifications.
+    `verification_status` reprend la strategie stricte de provenance :
+    OFFICIAL / MANUAL / HISTORICAL / DEMO / MOCK / REQUIRES_VALIDATION.
+    """
+
+    class SourceType(models.TextChoices):
+        OFFICIAL_WEBSITE = 'OFFICIAL_WEBSITE', 'Official website'
+        OFFICIAL_DOCUMENT = 'OFFICIAL_DOCUMENT', 'Official document'
+        SNAPSHOT = 'SNAPSHOT', 'Catalog snapshot'
+        AGENCY = 'AGENCY', 'Agency / sales point'
+        SUPPORT = 'SUPPORT', 'Support channel'
+        OTHER = 'OTHER', 'Other'
+
+    class VerificationStatus(models.TextChoices):
+        OFFICIAL = 'OFFICIAL', 'Official'
+        MANUAL = 'MANUAL', 'Manual'
+        HISTORICAL = 'HISTORICAL', 'Historical'
+        DEMO = 'DEMO', 'Demo'
+        MOCK = 'MOCK', 'Mock'
+        REQUIRES_VALIDATION = 'REQUIRES_VALIDATION', 'Requires validation'
+
+    product = models.ForeignKey(
+        Product, related_name='sources', on_delete=models.CASCADE,
+    )
+    source_name = models.CharField(max_length=255)
+    source_url = models.URLField(blank=True, default='')
+    source_type = models.CharField(
+        max_length=32, choices=SourceType.choices, default=SourceType.OFFICIAL_WEBSITE,
+    )
+    verification_status = models.CharField(
+        max_length=32, choices=VerificationStatus.choices,
+        default=VerificationStatus.REQUIRES_VALIDATION,
+    )
+    last_verified_at = models.DateField(null=True, blank=True)
+    checked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='verified_sources',
+    )
+    notes = models.TextField(blank=True, default='')
+    is_primary = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-is_primary', '-last_verified_at', 'source_name']
+        indexes = [
+            models.Index(fields=['verification_status']),
+            models.Index(fields=['product', 'is_primary']),
+        ]
+        constraints = [
+            # Une donnee OFFICIAL doit etre verifiable : URL obligatoire.
+            models.CheckConstraint(
+                condition=~models.Q(verification_status='OFFICIAL') | ~models.Q(source_url=''),
+                name='productsource_official_requires_url',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.source_name} ({self.verification_status}) -> {self.product.name}'
+
+    def log_verification(self, verified_by=None, result='VERIFIED', notes=''):
+        """Historise une verification dans SourceVerificationLog."""
+        return SourceVerificationLog.objects.create(
+            source=self,
+            verified_at=timezone.now(),
+            verified_by=verified_by,
+            result=result,
+            notes=notes,
+        )
+
+
+class SourceVerificationLog(models.Model):
+    """Historique des verifications d'une source (#12).
+
+    Conserve qui a verifie quoi, quand, avec quel resultat — sans jamais
+    stocker de donnee sensible.
+    """
+
+    class Result(models.TextChoices):
+        VERIFIED = 'VERIFIED', 'Verified'
+        CHANGED = 'CHANGED', 'Content changed'
+        UNAVAILABLE = 'UNAVAILABLE', 'Source unavailable'
+        INVALID = 'INVALID', 'Invalid / rejected'
+
+    source = models.ForeignKey(
+        ProductSource, related_name='verification_logs', on_delete=models.CASCADE,
+    )
+    verified_at = models.DateTimeField(default=timezone.now)
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    result = models.CharField(
+        max_length=16, choices=Result.choices, default=Result.VERIFIED,
+    )
+    notes = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-verified_at']
+        indexes = [models.Index(fields=['source', 'verified_at'])]
+
+    def __str__(self):
+        return f'{self.source.source_name} - {self.result} @ {self.verified_at:%Y-%m-%d %H:%M}'
 
 
 def _populate_search_vector(sender, instance, **kwargs):

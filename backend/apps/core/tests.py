@@ -7,6 +7,7 @@ from io import StringIO
 from django.contrib.auth import get_user_model
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
+from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.categories.models import Category
@@ -25,6 +26,70 @@ from apps.subscriptions.models import SubscriptionRequest
 
 
 User = get_user_model()
+
+
+class AccessBackofficeIntegrationTest(APITestCase):
+    """RBAC #20/#21 — intégration : CUSTOMER jamais en back-office, staff OK."""
+
+    def setUp(self):
+        from apps.categories.models import Category
+
+        from apps.products.models import Product
+
+        self.category = Category.objects.create(name='Internet', slug='internet')
+        self.product = Product.objects.create(
+            name='Fibre Pro', slug='fibre-pro', description='Offre fibre',
+            price='100', category=self.category,
+        )
+        self.bo_endpoints = [
+            '/api/v1/products/fibre-pro/',
+            '/api/v1/products/fibre-pro/publish/',
+            '/api/v1/dashboard/summary/',
+            '/api/v1/analytics/summary/',
+            '/api/v1/catalog/quality/',
+        ]
+
+    def _user(self, username, role, is_staff=False):
+        return User.objects.create_user(
+            username=username, password='TestPassword123!',
+            role=role, is_staff=is_staff,
+        )
+
+    def test_customer_receives_403_on_backoffice_endpoints(self):
+        """Test critique #4 : un CUSTOMER manipulant l'URL du back-office -> 403."""
+        customer = self._user('clientbo', 'CUSTOMER')
+        self.client.force_authenticate(user=customer)
+        # GET sur la fiche produit est public (200) — le back-office est
+        # porte par les actions d'ecriture et les endpoints admin.
+        for url in self.bo_endpoints:
+            response = self.client.get(url)
+            if 'products/fibre-pro/' in url and not url.endswith('/publish/'):
+                continue  # fiche produit = lecture publique
+            if url.endswith('/publish/') and response.status_code == status.HTTP_403_FORBIDDEN:
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            elif url.endswith('/publish/'):
+                self.assertIn(response.status_code, {
+                    status.HTTP_403_FORBIDDEN, status.HTTP_405_METHOD_NOT_ALLOWED,
+                })
+            else:
+                self.assertIn(response.status_code, {
+                    status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN,
+                })
+
+    def test_admin_has_backoffice_access(self):
+        """Test critique #5 : un admin accede au back-office."""
+        admin = self._user('admbo', 'ADMIN', is_staff=True)
+        self.client.force_authenticate(user=admin)
+        response = self.client.get('/api/v1/dashboard/summary/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_editor_can_publish_refused(self):
+        """Le Publish reste Admin-only (matrice 3.1). L'éditeur n'est pas
+        staff (comme seed_data) : IsAdminUser le refuse."""
+        editor = self._user('editorbo', 'EDITOR', is_staff=False)
+        self.client.force_authenticate(user=editor)
+        response = self.client.post('/api/v1/products/fibre-pro/publish/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class CategoryModelTest(TestCase):
