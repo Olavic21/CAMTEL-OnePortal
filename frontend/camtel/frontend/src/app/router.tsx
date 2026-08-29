@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/features/auth/hooks/useAuth';
 import { RequireAuth } from '@/features/auth/components/RequireAuth';
 
@@ -11,7 +11,6 @@ import { RouteLoadingFallback } from './layout/RouteLoadingFallback';
 // la demande via un chunk separe, au lieu d'un seul bundle initial monolithique.
 // Seuls les layouts (structure toujours visible) restent en import direct.
 const HomePage = lazy(() => import('./pages/HomePage'));
-const EnterprisePage = lazy(() => import('./pages/EnterprisePage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 const ProductListPage = lazy(() => import('@/features/products/pages/ProductListPage'));
@@ -19,6 +18,14 @@ const ProductDetailPage = lazy(() => import('@/features/products/pages/ProductDe
 const ProductComparePage = lazy(() => import('@/features/products/pages/ProductComparePage'));
 const AdminProductListPage = lazy(() => import('@/features/products/pages/AdminProductListPage'));
 const AdminProductFormPage = lazy(() => import('@/features/products/pages/AdminProductFormPage'));
+const AdminCataloguePage = lazy(() => import('@/features/catalogue/pages/AdminCataloguePage'));
+const AdminServicesPage = lazy(() => import('@/features/services/pages/AdminServicesPage'));
+const AdminOffersPage = lazy(() => import('@/features/offers/pages/AdminOffersPage'));
+const AdminClientsPage = lazy(() => import('@/features/clients/pages/AdminClientsPage'));
+const AdminAnalyticsPage = lazy(() => import('@/features/analytics/pages/AdminAnalyticsPage'));
+const AdminSourcesPage = lazy(() => import('@/features/sources/pages/AdminSourcesPage'));
+const AdminAdministrationPage = lazy(() => import('@/features/administration/pages/AdminAdministrationPage'));
+const EligibilityPage = lazy(() => import('@/features/eligibility/pages/EligibilityPage'));
 
 const NewsListPage = lazy(() => import('@/features/news/pages/NewsListPage'));
 const NewsDetailPage = lazy(() => import('@/features/news/pages/NewsDetailPage'));
@@ -32,6 +39,7 @@ const AdminCategoryListPage = lazy(() => import('@/features/categories/pages/Adm
 const AdminMediaLibraryPage = lazy(() => import('@/features/media/pages/AdminMediaLibraryPage'));
 const AdminActivityLogPage = lazy(() => import('@/features/activity-log/pages/AdminActivityLogPage'));
 const AdminDashboardPage = lazy(() => import('@/features/dashboard/pages/AdminDashboardPage'));
+const AdminDataQualityPage = lazy(() => import('@/features/dashboard/pages/AdminDataQualityPage'));
 const AdminContactInboxPage = lazy(() => import('@/features/contact/pages/AdminContactInboxPage'));
 
 const ContactPage = lazy(() => import('@/features/contact/pages/ContactPage'));
@@ -55,6 +63,14 @@ const AssistantPage = lazy(() => import('@/features/chat/pages/AssistantPage'));
 // Routes espace client (section 21.1)
 const ClientSubscriptionsPage = lazy(() => import('@/features/account/pages/ClientSubscriptionsPage'));
 const ClientDashboardPage = lazy(() => import('@/features/account/pages/ClientDashboardPage'));
+const ClientPaymentsPage = lazy(() => import('@/features/payments/pages/ClientPaymentsPage'));
+const ClientNotificationsPage = lazy(() => import('@/features/notifications/pages/ClientNotificationsPage'));
+
+// Univers de services (cahier des charges section 4) : Fixes / Mobiles /
+// Transport / Data Center. Un template commun ServicePage rend les quatre.
+const ServicePage = lazy(() => import('@/features/services/pages/ServicePage'));
+const SearchPage = lazy(() => import('@/features/search/pages/SearchPage'));
+const FindSolutionPage = lazy(() => import('@/features/find-solution/pages/FindSolutionPage'));
 // L'API versionnee cote backend (/api/v1/) n'a pas d'impact ici. /admin/login et /inscription
 // sont les seules routes exemptees de la garde RequireAuth.
 //
@@ -63,6 +79,16 @@ const ClientDashboardPage = lazy(() => import('@/features/account/pages/ClientDa
 // role editor/gestionnaire — un visitor authentifie reste bloque hors du
 // back-office (voir RequireAuth roles={['editor']} plus bas), mais accede a
 // son espace personnel via /mon-compte (RequireAuth sans roles = authentifie).
+/**
+ * Redirection de l'ancienne page « Entreprise » (qui etait traitee comme un
+ * service) vers le catalogue filtre sur le segment ENTREPRISE. « Entreprise »
+ * est desormais un segment client, pas un service (cahier des charges 2/4) —
+ * l'alias preserve les anciens liens sans conserver une page autonome.
+ */
+function SegmentRedirect({ segment }: { segment: string }) {
+  return <Navigate to={`/produits?segment=${segment}`} replace />;
+}
+
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -74,11 +100,22 @@ export function AppRouter() {
 
             <Route element={<PublicLayout />}>
               <Route path="/" element={<HomePage />} />
+
+              {/* Univers de services (section 4) : FIXES / MOBILES / TRANSPORT / DATA_CENTER */}
+              <Route path="/services/:serviceSlug" element={<ServicePage />} />
+
+              {/* Recherche globale et assistant guide (sections 12 et 14) */}
+              <Route path="/recherche" element={<SearchPage />} />
+              <Route path="/verifier-eligibilite" element={<EligibilityPage />} />
+                <Route path="/trouver-une-solution" element={<FindSolutionPage />} />
+
+              {/* Catalogue et produits */}
               <Route path="/produits" element={<ProductListPage />} />
               <Route path="/produits/comparateur" element={<ProductComparePage />} />
               <Route path="/produits/:slug" element={<ProductDetailPage />} />
               <Route path="/produits/:slug/souscrire" element={<SubscriptionPage />} />
-              <Route path="/entreprise" element={<EnterprisePage />} />
+
+              {/* Actualites / promotions / documents / assistant / contact (KEEP) */}
               <Route path="/actualites" element={<NewsListPage />} />
               <Route path="/actualites/:slug" element={<NewsDetailPage />} />
               <Route path="/promotions" element={<PromotionsPage />} />
@@ -86,12 +123,19 @@ export function AppRouter() {
               <Route path="/assistant" element={<AssistantPage />} />
               <Route path="/contact" element={<ContactPage />} />
 
+              {/* Alias : /entreprise est desormais un SEGMENT, pas un service.
+                  Redirection vers le filtre catalogue segment=ENTREPRISE pour
+                  ne pas casser les anciens liens (regle 12 / section 4). */}
+              <Route path="/entreprise" element={<SegmentRedirect segment="ENTREPRISE" />} />
+
               <Route element={<RequireAuth />}>
                 <Route path="/mon-compte" element={<ClientAccountPage />} />
                 <Route path="/mon-compte/abonnements" element={<ClientSubscriptionsPage />} />
                 <Route path="/mon-compte/dashboard" element={<ClientDashboardPage />} />
+                <Route path="/mon-compte/paiements" element={<ClientPaymentsPage />} />
                 <Route path="/mon-compte/tickets" element={<ClientTicketListPage />} />
                 <Route path="/mon-compte/tickets/:id" element={<ClientTicketDetailPage />} />
+                <Route path="/mon-compte/notifications" element={<ClientNotificationsPage />} />
               </Route>
 
               <Route path="*" element={<NotFoundPage />} />
@@ -100,7 +144,15 @@ export function AppRouter() {
             <Route element={<RequireAuth roles={['editor']} />}>
               <Route element={<AdminLayout />}>
                 <Route path="/admin" element={<AdminDashboardPage />} />
+                <Route path="/admin/catalogue" element={<AdminCataloguePage />} />
+                <Route path="/admin/services" element={<AdminServicesPage />} />
+                <Route path="/admin/offres" element={<AdminOffersPage />} />
+                <Route path="/admin/clients" element={<AdminClientsPage />} />
+                <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+                <Route path="/admin/sources" element={<AdminSourcesPage />} />
+                <Route path="/admin/administration" element={<AdminAdministrationPage />} />
                 <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
+                <Route path="/admin/qualite" element={<AdminDataQualityPage />} />
 
                 <Route element={<RequireAuth permission="edit_product_draft" />}>
                   <Route path="/admin/produits" element={<AdminProductListPage />} />

@@ -13,7 +13,9 @@ const links = [
   { to: '/mon-compte', key: 'profile' },
   { to: '/mon-compte/abonnements', key: 'subscriptions' },
   { to: '/mon-compte/dashboard', key: 'dashboard' },
+  { to: '/mon-compte/paiements', key: 'payments' },
   { to: '/mon-compte/tickets', key: 'tickets' },
+  { to: '/mon-compte/notifications', key: 'notifications' },
 ];
 
 export function ClientAccountNav() {

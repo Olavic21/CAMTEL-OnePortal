@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Send, RotateCcw } from 'lucide-react';
 import { useAskChat } from '../hooks/useChat';
-import { OnePortalAILogo } from '@/shared/components/OnePortalAILogo';
+import { CAMTELAssistantLogo } from '@/shared/components/OnePortalAILogo';
 import { Button } from '@/shared/components/Button';
 
 interface ChatMessage {
@@ -57,7 +57,7 @@ export default function AssistantPage() {
   return (
     <div className="container-app py-8">
       <div className="mb-6 flex items-center gap-4">
-        <OnePortalAILogo variant="header" className="shrink-0" />
+        <CAMTELAssistantLogo variant="header" className="shrink-0" />
         <div>
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{t('chatbot.title')}</h1>
           <p className="text-sm text-neutral-500 dark:text-neutral-400">{t('chatbot.subtitle')}</p>

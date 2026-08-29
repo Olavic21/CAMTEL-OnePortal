@@ -7,6 +7,8 @@ export interface ProductListParams {
   search?: string;
   page?: number;
   status?: string;
+  service?: string;
+  page_size?: number;
   ordering?: string;
 }
 

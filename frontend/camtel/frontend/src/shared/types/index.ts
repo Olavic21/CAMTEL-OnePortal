@@ -1,4 +1,18 @@
 // Types alignés sur le modele de donnees Django/DRF (section 7 de la documentation)
+// =============================================================================
+// Contrat centralise (cahier des charges v1.0) : Service, Segment, PriceType,
+// Availability, DataQuality, ProductV2, schemas de specifications, ...
+// https://github.com/<org>/camtel-oneportal  → docs/AUDIT_FRONTEND.md
+// =============================================================================
+export * from './catalog';
+import type {
+  PriceInfo,
+  ProductAvailability,
+  ProductSource,
+  ProductSpecifications,
+  Segment,
+  Service,
+} from './catalog';
 
 export type UserRole =
   | 'super_admin'
@@ -19,14 +33,19 @@ export interface User {
   last_login?: string | null;
 }
 
-export type Segment = 'grand_public' | 'entreprise';
+/**
+ * Segment d'une CATEGORIE de catalogue (taxonomie historique backend).
+ * NB : ne pas confondre avec le nouveau type `Segment` (profil client :
+ * PARTICULIER/PROFESSIONNEL/ENTREPRISE/ADMINISTRATION) issu de ./catalog.
+ */
+export type CategorySegment = 'grand_public' | 'entreprise';
 
 export interface Category {
   id: number;
   name: string;
   slug: string;
   description?: string | null;
-  segment: Segment;
+  segment: CategorySegment;
   parent_id: number | null;
   created_at: string;
   updated_at: string;
@@ -90,6 +109,33 @@ export interface Product {
   last_verified_at?: string | null;
   is_stale?: boolean;
   cta_type?: 'subscribe' | 'agency' | 'quote' | 'eligibility';
+
+  // ==========================================================================
+  // Nouveau contrat (cahier des charges v1.0) — champs optionnels pour rester
+  // compatible avec l'API existante et les donnees mocks.
+  // Service et Segment sont INDEPENDANTS (jamais de hierarchie parent/enfant).
+  // ==========================================================================
+  service?: Service;
+  segment?: Segment;
+  /** Tarification normalisee (type + montant XAF). `undefined` => prix inconnu. */
+  pricing?: PriceInfo;
+  /** Specifications pilotees par schema. */
+  specifications?: ProductSpecifications;
+  benefits?: string[];
+  options?: string[];
+  terms?: string[];
+  eligibility?: string[];
+  source?: ProductSource;
+  availability?: ProductAvailability;
+  product_type?: 'SERVICE_OFFER' | 'PHYSICAL_PRODUCT' | string;
+  offer_type?: string;
+  billing_period?: 'MONTHLY' | 'YEARLY' | 'ONE_TIME' | string;
+  technology?: string;
+  install_fee?: number | null;
+  activation_fee?: number | null;
+  contract_duration?: string;
+  /** Priorite grace a laquelle la V2 remplace proprement la V1 quand disponible. */
+  version?: 1 | 2;
 }
 
 export type ContentStatus = 'draft' | 'published';

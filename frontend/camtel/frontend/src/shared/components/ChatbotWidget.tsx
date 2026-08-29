@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { X, Send, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { httpClient } from '@/shared/lib/axios';
-import { OnePortalAILogo } from '@/shared/components/OnePortalAILogo';
+import { CAMTELAssistantLogo } from '@/shared/components/OnePortalAILogo';
 import { useTranslation } from 'react-i18next';
 
 interface ChatMessage {
@@ -68,7 +68,7 @@ export function ChatbotWidget() {
           >
             <div className="flex items-center justify-between bg-gradient-to-r from-primary-900 via-primary to-primary-600 px-4 py-3">
               <div className="flex items-center gap-2">
-                <OnePortalAILogo variant="icon" className="h-8 w-8 rounded-lg" />
+                <CAMTELAssistantLogo variant="icon" className="h-8 w-8 rounded-lg" />
                 <div>
                   <p className="text-sm font-semibold text-white">{t('chatbot.title')}</p>
                   <p className="flex items-center gap-1 text-[11px] text-white/80">

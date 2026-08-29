@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
-import { LayoutDashboard, Package, FolderTree, Newspaper, Tag, Image as ImageIcon, Mail, History, Users, Bell, LogOut, ClipboardList, MessageCircle } from 'lucide-react';
+import { LayoutDashboard, Package, FolderTree, Newspaper, Tag, Users, Bell, LogOut, ClipboardList, MessageCircle, ShieldCheck, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { Logo } from '@/shared/components/Logo';
 import type { Permission } from '@/features/auth/permissions';
@@ -12,17 +12,17 @@ import type { Permission } from '@/features/auth/permissions';
 // Les libelles sont resolus via i18n (cle admin.sidebar.*).
 const navItems: { to: string; key: string; icon: typeof LayoutDashboard; end?: boolean; permission?: Permission }[] = [
   { to: '/admin', key: 'dashboard', icon: LayoutDashboard, end: true },
-  { to: '/admin/notifications', key: 'notifications', icon: Bell },
-  { to: '/admin/produits', key: 'products', icon: Package, permission: 'edit_product_draft' },
+  { to: '/admin/catalogue', key: 'catalogue', icon: Package },
+  { to: '/admin/services', key: 'services', icon: FolderTree },
+  { to: '/admin/offres', key: 'offers', icon: Tag },
   { to: '/admin/souscriptions', key: 'subscriptions', icon: ClipboardList, permission: 'manage_subscriptions' },
+  { to: '/admin/clients', key: 'clients', icon: Users },
   { to: '/admin/tickets', key: 'tickets', icon: MessageCircle, permission: 'manage_subscriptions' },
-  { to: '/admin/categories', key: 'categories', icon: FolderTree, permission: 'manage_categories' },
-  { to: '/admin/actualites', key: 'news', icon: Newspaper, permission: 'edit_news' },
-  { to: '/admin/promotions', key: 'promotions', icon: Tag, permission: 'edit_promotion' },
-  { to: '/admin/mediatheque', key: 'media', icon: ImageIcon, permission: 'upload_media' },
-  { to: '/admin/messages', key: 'messages', icon: Mail, permission: 'manage_contact' },
-  { to: '/admin/journal', key: 'activityLog', icon: History, permission: 'view_activity_log' },
-  { to: '/admin/utilisateurs', key: 'users', icon: Users, permission: 'manage_users' },
+  { to: '/admin/analytics', key: 'analytics', icon: TrendingUp },
+  { to: '/admin/notifications', key: 'notifications', icon: Bell },
+  { to: '/admin/sources', key: 'sources', icon: Newspaper },
+  { to: '/admin/qualite', key: 'quality', icon: ShieldCheck },
+  { to: '/admin/administration', key: 'administration', icon: LogOut },
 ];
 
 export function AdminSidebar() {

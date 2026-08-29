@@ -1,16 +1,16 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { Scale, PackageSearch, ArrowUpDown } from 'lucide-react';
 import { useState } from 'react';
-import { useProducts } from '../hooks/useProducts';
-import { useCategories } from '@/features/categories/hooks/useCategories';
+import { useCatalog } from '../hooks/useCatalog';
 import { ProductCard } from '../components/ProductCard';
 import { ProductFilters, type ProductFilterState } from '../components/ProductFilters';
 import { Pagination } from '@/shared/components/Pagination';
 import { Skeleton } from '@/shared/components/Skeleton';
 import { EmptyState } from '@/shared/components/EmptyState';
+import { Breadcrumbs } from '@/shared/components/Breadcrumbs';
 import { useTranslation } from 'react-i18next';
 
-type SortValue = '' | 'price' | '-price' | '-created_at' | 'name';
+type SortValue = '' | 'price' | '-price' | 'name' | 'availability';
 
 export default function ProductListPage() {
   const { t } = useTranslation();
@@ -18,26 +18,28 @@ export default function ProductListPage() {
   const [page, setPage] = useState(1);
   const [orderBy, setOrderBy] = useState<SortValue>('');
   const filters: ProductFilterState = {
-    category: searchParams.get('category') ?? '',
+    service: searchParams.get('service') ?? '',
     segment: searchParams.get('segment') ?? '',
+    availability: searchParams.get('availability') ?? '',
     search: searchParams.get('search') ?? '',
   };
 
-  const { data: categoriesData } = useCategories();
-  const { data, isLoading } = useProducts({
-    category: filters.category || undefined,
+  const { data, isLoading } = useCatalog({
+    service: filters.service || undefined,
     segment: filters.segment || undefined,
     search: filters.search || undefined,
-    ordering: orderBy || undefined,
     page,
   });
+
+  const results = sortProducts(data?.results ?? [], orderBy);
 
   function updateFilters(next: ProductFilterState) {
     setPage(1);
     setOrderBy('');
     const params = new URLSearchParams();
-    if (next.category) params.set('category', next.category);
+    if (next.service) params.set('service', next.service);
     if (next.segment) params.set('segment', next.segment);
+    if (next.availability) params.set('availability', next.availability);
     if (next.search) params.set('search', next.search);
     setSearchParams(params);
   }
@@ -48,13 +50,16 @@ export default function ProductListPage() {
 
   return (
     <div className="container-app py-10">
+      <Breadcrumbs
+        items={[{ label: t('nav.home'), to: '/' }, { label: t('products.catalogTitle') }]}
+      />
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 sm:text-3xl">{t('products.catalogTitle')}</h1>
           <p className="mt-1 text-neutral-500 dark:text-neutral-400">{t('products.catalogSubtitle')}</p>
         </div>
         <Link
-          to="/produits/comparateur"
+          to="/compare"
           className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline dark:text-primary-300"
         >
           <Scale className="h-4 w-4" /> {t('products.compareOffers')}
@@ -62,14 +67,10 @@ export default function ProductListPage() {
       </div>
 
       <div className="mb-6">
-        <ProductFilters
-          categories={categoriesData?.results ?? []}
-          filters={filters}
-          onChange={updateFilters}
-        />
+        <ProductFilters filters={filters} onChange={updateFilters} />
       </div>
 
-      {/* Barre d'outils du catalogue : nombre de résultats + tri */}
+      {/* Barre d'outils : nombre de resultats + tri */}
       {!isLoading && !!totalProducts && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-neutral-500 dark:text-neutral-400">
@@ -87,13 +88,12 @@ export default function ProductListPage() {
               <option value="">{t('products.sort.relevance')}</option>
               <option value="price">{t('products.sort.priceAsc')}</option>
               <option value="-price">{t('products.sort.priceDesc')}</option>
-              <option value="-created_at">{t('products.sort.newest')}</option>
               <option value="name">{t('products.sort.alphabetical')}</option>
+              <option value="availability">{t('products.sort.availability')}</option>
             </select>
           </div>
         </div>
       )}
-
 
       {isLoading ? (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -101,7 +101,7 @@ export default function ProductListPage() {
             <Skeleton key={i} className="aspect-[4/3] w-full" />
           ))}
         </div>
-      ) : !data?.results.length ? (
+      ) : results.length === 0 ? (
         <EmptyState
           icon={PackageSearch}
           title={t('products.noResults')}
@@ -110,8 +110,8 @@ export default function ProductListPage() {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {data.results.map((product, i) => (
-              <ProductCard key={product.id} product={product} index={i} />
+            {results.map((product, i) => (
+              <ProductCard key={String(product.id)} product={product} index={i} />
             ))}
           </div>
           <div className="mt-10">
@@ -121,4 +121,26 @@ export default function ProductListPage() {
       )}
     </div>
   );
+}
+
+/** Tri local (les mocks n'ont pas de tri cote API). */
+function sortProducts<T extends { name: string; pricing?: { amount?: number } | null; availability?: string }>(
+  products: T[],
+  orderBy: SortValue,
+): T[] {
+  if (!orderBy) return products;
+  const sorted = [...products];
+  if (orderBy === 'price') {
+    return sorted.sort((a, b) => (a.pricing?.amount ?? Number.MAX_SAFE_INTEGER) - (b.pricing?.amount ?? Number.MAX_SAFE_INTEGER));
+  }
+  if (orderBy === '-price') {
+    return sorted.sort((a, b) => (b.pricing?.amount ?? -1) - (a.pricing?.amount ?? -1));
+  }
+  if (orderBy === 'name') {
+    return sorted.sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+  }
+  if (orderBy === 'availability') {
+    return sorted.sort((a, b) => (a.availability ?? '').localeCompare(b.availability ?? ''));
+  }
+  return sorted;
 }

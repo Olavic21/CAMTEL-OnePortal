@@ -4,6 +4,39 @@ Application React + TypeScript (Vite) du site public et du back-office de la
 plateforme produits & services CAMTEL, conforme a l'architecture decrite dans
 la documentation technique du projet (sections 4 a 12).
 
+## ⚠️ Important — Comment démarrer le frontend
+
+**Le fichier `package.json` se trouve UNIQUEMENT dans ce dossier** (`frontend/camtel/frontend/`).
+
+Pour démarrer le frontend, vous avez deux options :
+
+### Option 1 : Utiliser les scripts de démarrage (recommandé)
+
+Double-cliquez sur l'un des fichiers suivants :
+- **`start-frontend.bat`** — pour Windows (invite de commande)
+- **`start-frontend.ps1`** — pour Windows PowerShell
+
+Ces scripts installent automatiquement les dépendances si nécessaire et lancent le serveur de développement.
+
+### Option 2 : Ligne de commande
+
+```bash
+# Naviguer vers le dossier frontend
+cd frontend/camtel/frontend
+
+# Installer les dépendances
+npm install
+
+# Démarrer le serveur de développement
+npm run dev```
+
+L'application demarre sur `http://localhost:5173` et proxy les appels
+`/api/*` vers `http://localhost:8000` (backend Django/DRF) en developpement —
+voir `vite.config.ts`. En production, `VITE_API_BASE_URL` pointe directement
+vers l'URL de l'API (ex: `https://api.camtel.cm/api/v1`).
+
+---
+
 ## Stack
 
 - **React 18 + TypeScript** (strict)
@@ -17,18 +50,83 @@ la documentation technique du projet (sections 4 a 12).
 - **react-i18next** — fondations multilingues FR/EN
 - **Recharts** — graphiques du tableau de bord admin
 
-## Demarrage
+## 🔑 Acces au Back-Office (Mode Demo — Sans Backend)
 
-```bash
-cp .env.example .env
-npm install
-npm run dev
+Le frontend inclut un **mode demo** qui permet d'acceder au back-office sans
+avoir besoin du backend Django/DRF ni d'une base de donnees. Ideal pour le
+developpement et la demonstration.
+
+### Activer le mode demo
+
+Verifiez que le fichier `.env` contient :
+
+```env
+VITE_DEMO_MODE=true
 ```
 
-L'application demarre sur `http://localhost:5173` et proxy les appels
-`/api/*` vers `http://localhost:8000` (backend Django/DRF) en developpement —
-voir `vite.config.ts`. En production, `VITE_API_BASE_URL` pointe directement
-vers l'URL de l'API (ex: `https://api.camtel.cm/api/v1`).
+### Identifiants de connexion
+
+| Role | Nom d'utilisateur | Mot de passe |
+|------|-------------------|--------------|
+| **Super Admin** (acces complet) | `superadmin` | `CamtelAdmin2026!` |
+
+### Etapes pour acceder au back-office
+
+1. **Demarrer le serveur de developpement** :
+   ```bash
+   npm run dev
+   ```
+
+2. **Naviguer vers la page de connexion** :
+   ```
+   http://localhost:5173/admin/login
+   ```
+
+3. **Se connecter avec les identifiants Super Admin** :
+   - Nom d'utilisateur : `superadmin`
+   - Mot de passe : `CamtelAdmin2026!`
+
+4. **Acceder au back-office** :
+   - Apres connexion, cliquez sur le bouton **"Back-Office"** dans le header
+   - Ou naviguez directement vers `http://localhost:5173/admin`
+
+### Fonctionnalites accessibles en mode demo
+
+- ✅ Dashboard avec statistiques
+- ✅ Catalogue produits (filtres service/segment)
+- ✅ Gestion des services (Fixes, Mobiles, Transport, Data Center)
+- ✅ Gestion des offres
+- ✅ Gestion des clients
+- ✅ Analytics et metriques
+- ✅ Qualite des donnees
+- ✅ Tickets support
+- ✅ Notifications
+- ✅ Parametres d'administration
+
+### Creer des utilisateurs supplementaires
+
+En tant que super_admin, vous pouvez creer des comptes avec differents roles
+via **Administration** > **Utilisateurs** :
+
+| Role | Permissions |
+|------|-------------|
+| `super_admin` | Acces complet (creation d'admins, journal d'activite) |
+| `admin` | Gestion catalogue, clients, souscriptions |
+| `product_manager` | Gestion produits, promotions, media |
+| `editor` | Gestion actualites, promotions, media |
+
+### Deconnexion
+
+Cliquez sur **"Se deconnecter"** dans le header. Pour reinitialiser la session
+demo, supprimez la cle `camtel_demo_accounts` du localStorage du navigateur.
+
+### Desactiver le mode demo (production)
+
+Pour utiliser le backend Django/DRF reel, modifiez `.env` :
+
+```env
+VITE_DEMO_MODE=false
+```
 
 ## Scripts
 

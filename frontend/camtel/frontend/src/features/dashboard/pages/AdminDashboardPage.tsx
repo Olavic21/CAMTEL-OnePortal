@@ -3,6 +3,7 @@ import { Package, FileText, Tag, MessageSquare, TrendingUp, Search } from 'lucid
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { useDashboardSummary, useAnalyticsSummary } from '../hooks/useDashboard';
 import { SummaryCard } from '../components/SummaryCard';
+import { DataQualityWidget } from '../components/DataQualityWidget';
 import { Card } from '@/shared/components/Card';
 import { Skeleton } from '@/shared/components/Skeleton';
 import { formatDate } from '@/shared/utils/format';
@@ -106,6 +107,9 @@ export default function AdminDashboardPage() {
             )}
           </ul>
         </Card>
+
+        {/* Widget Qualite des donnees (cahier des charges section 19) */}
+        <DataQualityWidget />
       </div>
     </div>
   );

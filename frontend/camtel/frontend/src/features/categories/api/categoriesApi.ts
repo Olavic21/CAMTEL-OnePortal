@@ -1,9 +1,9 @@
 import { httpClient } from '@/shared/lib/axios';
-import type { Category, Paginated, Segment } from '@/shared/types';
+import type { Category, CategorySegment, Paginated } from '@/shared/types';
 
 export interface CategoryPayload {
   name: string;
-  segment: Segment;
+  segment: CategorySegment;
   parent_id?: number | null;
   description?: string;
 }
