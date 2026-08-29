@@ -32,6 +32,14 @@ class SubscriptionRequestViewSet(viewsets.ModelViewSet):
             changed_by=user,
             comment='Demande creee',
         )
+        # Phase 17 : evenement analytics metier (source serveur).
+        from apps.core.analytics import record_event
+        record_event(
+            event_type='subscription_submitted',
+            user=user,
+            product=instance.product,
+            payload={'request_number': instance.request_number},
+        )
         from apps.core.models import Notification
         Notification.objects.create(
             message=f'Nouvelle demande de souscription {instance.request_number}: {instance.product.name}',
@@ -65,10 +73,16 @@ class SubscriptionRequestViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='change-status')
     def change_status(self, request, pk=None):
-        """Transition de statut (admin). Trace dans SubscriptionStatusHistory et notifie."""
+        """Transition de statut (admin). Trace dans SubscriptionStatusHistory et notifie.
+
+        Valide la normalisation (aliases cahier des charges #24 : SUBMITTED,
+        ACTIVATED) et la matrice de transitions ALLOWED_TRANSITIONS.
+        """
         subscription = self.get_object()
-        new_status = (request.data.get('status') or '').strip().upper()
-        valid = SubscriptionRequest.Status.values
+        new_status = SubscriptionRequest.normalize(
+            request.data.get('status'),
+        )
+        valid = list(SubscriptionRequest.Status.values)
         if new_status not in valid:
             return Response(
                 {'detail': f'Statut invalide. Valeurs acceptees: {", ".join(sorted(valid))}'},
@@ -77,6 +91,14 @@ class SubscriptionRequestViewSet(viewsets.ModelViewSet):
         old_status = subscription.status
         if new_status == old_status:
             return Response(SubscriptionRequestSerializer(subscription, context={'request': request}).data)
+        # Matrice de transitions (#24) : tout saut hors flux nominal est refuse,
+        # sauf retour arriere autorise pour correction par un admin.
+        allowed = SubscriptionRequest.ALLOWED_TRANSITIONS.get(old_status, set())
+        if new_status not in allowed and old_status not in SubscriptionRequest.TERMINAL_STATUSES:
+            return Response(
+                {'detail': f'Transition interdite: {old_status} -> {new_status}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         reason = (request.data.get('reason') or '').strip()
         comment = (request.data.get('comment') or '').strip()
         subscription.status = new_status
@@ -89,6 +111,19 @@ class SubscriptionRequestViewSet(viewsets.ModelViewSet):
             reason=reason,
             comment=comment,
         )
+        # Phase 17 : evenements metier enregistres cote serveur uniquement.
+        from apps.core.analytics import record_event
+        event_type = {
+            SubscriptionRequest.Status.APPROVED: 'subscription_approved',
+            SubscriptionRequest.Status.ACTIVATED: 'subscription_activated',
+        }.get(new_status)
+        if event_type:
+            record_event(
+                event_type=event_type,
+                user=subscription.user,
+                product=subscription.product,
+                payload={'request_number': subscription.request_number},
+            )
         if subscription.user_id:
             from apps.core.models import Notification
             Notification.objects.create(

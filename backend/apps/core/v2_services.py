@@ -93,6 +93,7 @@ class EligibilityResult:
     score: float
     product_id: int
     address: str = ""
+    provider: str = "mock"
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -102,6 +103,7 @@ class EligibilityResult:
             "score": self.score,
             "product_id": self.product_id,
             "address": self.address,
+            "provider": self.provider,
         }
 
 
@@ -122,6 +124,9 @@ class MockEligibilityProvider(EligibilityProvider):
     def check(self, product: Product, *, address: str = "", phone: str = "") -> EligibilityResult:
         reasons: List[str] = []
         score = 0.5
+
+        # P1-2: Add clear disclaimer that this is a simulated check
+        reasons.insert(0, "Vérification indicative — confirmation technique requise.")
 
         if not product.is_active or not product.is_published:
             reasons.append("Offre indisponible à la souscription.")
@@ -150,8 +155,8 @@ class MockEligibilityProvider(EligibilityProvider):
             score = min(score, 0.2)
 
         eligible = score >= 0.5
-        status = "ELIGIBLE" if eligible else "REQUIRES_REVIEW"
-        return EligibilityResult(eligible, status, reasons, round(max(0.0, min(score, 1.0)), 2), product.id, address)
+        status = "SIMULATED" if eligible else "REQUIRES_REVIEW"
+        return EligibilityResult(eligible, status, reasons, round(max(0.0, min(score, 1.0)), 2), product.id, address, self.name)
 
 
 def get_eligibility_provider(name: Optional[str] = None) -> EligibilityProvider:
@@ -184,6 +189,7 @@ class CamtelFiberEligibilityProvider(EligibilityProvider):
                 "Mode indicatif : API officielle Fiber Connect non configuree "
                 "(CAMTEL_FIBER_ELIGIBILITY_URL). Resultat non contractuel.",
             )
+            result.provider = self.name
             if result.eligible:
                 result.status = "REQUIRES_VERIFICATION"
                 result.eligible = False
@@ -209,13 +215,15 @@ class CamtelFiberEligibilityProvider(EligibilityProvider):
                 fallback.eligible = False
             return fallback
 
+        # When using real API, status should be VERIFIED
         return EligibilityResult(
             eligible=bool(payload.get("eligible")),
-            status=payload.get("status", "ELIGIBLE" if payload.get("eligible") else "NOT_ELIGIBLE"),
+            status="VERIFIED" if payload.get("eligible") else "NOT_ELIGIBLE",
             reasons=list(payload.get("reasons", [])) or ["Reponse du service officiel CAMTEL Fiber Connect."],
             score=float(payload.get("score", 1.0)),
             product_id=product.id,
             address=address,
+            provider=self.name,
         )
 
 

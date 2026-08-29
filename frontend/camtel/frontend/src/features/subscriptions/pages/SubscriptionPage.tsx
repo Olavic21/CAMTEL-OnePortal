@@ -84,7 +84,7 @@ export default function SubscriptionPage() {
               souscription elle-meme reste publique — n'affiche le CTA
               paiement que si l'utilisateur est connecte. */}
           {user && product?.price != null && (
-            <PaymentCta productId={product.id} amount={product.price} />
+            <PaymentCta productId={product.id} />
           )}
         </div>
       ) : (

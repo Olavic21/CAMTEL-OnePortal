@@ -4,7 +4,25 @@ from apps.categories.models import Category
 from apps.categories.serializers import CategorySerializer
 from apps.core.mixins import TranslatableModelSerializer
 
-from .models import Product, ProductFAQ, ProductImage
+from .models import Product, ProductFAQ, ProductImage, Segment, Service, ProductSource
+
+
+class ServiceSerializer(serializers.ModelSerializer):
+    """Verticale commerciale (fixes/mobiles/transport/data-center)."""
+
+    class Meta:
+        model = Service
+        fields = ('id', 'slug', 'code', 'name', 'name_en', 'description',
+                  'description_en', 'status', 'display_order')
+
+
+class SegmentSerializer(serializers.ModelSerializer):
+    """Segment client (particulier/professionnel/entreprise/administration)."""
+
+    class Meta:
+        model = Segment
+        fields = ('id', 'slug', 'code', 'name', 'name_en', 'display_order',
+                  'is_active')
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
@@ -29,6 +47,15 @@ class ProductSerializer(TranslatableModelSerializer):
     category_id = serializers.PrimaryKeyRelatedField(
         source='category', queryset=Category.objects.all(), write_only=True
     )
+    # Taxonomie V4 : verticale + segments (lecture) exposes au frontend.
+    service = ServiceSerializer(read_only=True)
+    segments = SegmentSerializer(many=True, read_only=True)
+    segments_codes = serializers.ListField(
+        child=serializers.CharField(), write_only=True, required=False,
+        help_text='Codes de segments (ex: ["PARTICULIER", "ENTREPRISE"]).',
+    )
+    # Source de verite structuree.
+    sources = serializers.SerializerMethodField()
     # Champ optionnel pour uploader une image de couverture lors de la creation.
     image = serializers.ImageField(required=False, allow_null=True, write_only=True)
     slug = serializers.SlugField(required=False, allow_blank=True)
@@ -43,6 +70,19 @@ class ProductSerializer(TranslatableModelSerializer):
     is_stale = serializers.BooleanField(read_only=True)
     cta_type = serializers.CharField(read_only=True)
     translatable_fields = ('name', 'description', 'short_description')
+
+    def get_sources(self, obj):
+        return [
+            {
+                'source_name': s.source_name,
+                'source_url': s.source_url,
+                'source_type': s.source_type,
+                'verification_status': s.verification_status,
+                'last_verified_at': s.last_verified_at.isoformat() if s.last_verified_at else None,
+                'is_primary': s.is_primary,
+            }
+            for s in obj.sources.all()
+        ]
 
     class Meta:
         model = Product
@@ -68,6 +108,10 @@ class ProductSerializer(TranslatableModelSerializer):
             'product_type',
             'offer_type',
             'segment',
+            'service',
+            'segments',
+            'segments_codes',
+            'sources',
             'billing_period',
             'activation_fee',
             'installation_fee',
@@ -119,6 +163,7 @@ class ProductSerializer(TranslatableModelSerializer):
 
     def create(self, validated_data):
         image = validated_data.pop('image', None)
+        segments_codes = validated_data.pop('segments_codes', None)
         if not validated_data.get('slug'):
             from django.utils.text import slugify
 
@@ -130,6 +175,8 @@ class ProductSerializer(TranslatableModelSerializer):
                 counter += 1
             validated_data['slug'] = slug
         product = super().create(validated_data)
+        if segments_codes:
+            product.sync_segments(segments_codes)
         if image:
             ProductImage.objects.create(
                 product=product,
@@ -138,6 +185,13 @@ class ProductSerializer(TranslatableModelSerializer):
                 order=1,
                 alt_text=product.name,
             )
+        return product
+
+    def update(self, instance, validated_data):
+        segments_codes = validated_data.pop('segments_codes', None)
+        product = super().update(instance, validated_data)
+        if segments_codes:
+            product.sync_segments(segments_codes)
         return product
 
 

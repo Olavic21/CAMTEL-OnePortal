@@ -3,16 +3,16 @@ from apps.users.models import User
 
 
 class Command(BaseCommand):
-    help = 'Create test admin and visitor users (idempotent)'
+    help = 'Create test admin and customer users (idempotent)'
 
     def handle(self, *args, **options):
         admin_username = 'admin_test'
         admin_email = 'admin_test@example.com'
         admin_password = 'AdminPass123!'
 
-        visitor_username = 'visitor_test'
-        visitor_email = 'visitor_test@example.com'
-        visitor_password = 'VisitorPass123!'
+        customer_username = 'customer_test'
+        customer_email = 'customer_test@example.com'
+        customer_password = 'CustomerPass123!'
 
         admin, created = User.objects.get_or_create(
             username=admin_username,
@@ -29,19 +29,19 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.WARNING(f'Admin {admin_username} already exists'))
 
-        visitor, created = User.objects.get_or_create(
-            username=visitor_username,
+        customer, created = User.objects.get_or_create(
+            username=customer_username,
             defaults={
-                'email': visitor_email,
-                'role': User.Role.VIEWER,
+                'email': customer_email,
+                'role': User.Role.CUSTOMER,
                 'is_staff': False,
             },
         )
         if created:
-            visitor.set_password(visitor_password)
-            visitor.save()
-            self.stdout.write(self.style.SUCCESS(f'Created visitor: {visitor_username} / {visitor_password}'))
+            customer.set_password(customer_password)
+            customer.save()
+            self.stdout.write(self.style.SUCCESS(f'Created customer: {customer_username} / {customer_password}'))
         else:
-            self.stdout.write(self.style.WARNING(f'Visitor {visitor_username} already exists'))
+            self.stdout.write(self.style.WARNING(f'Customer {customer_username} already exists'))
 
         self.stdout.write(self.style.NOTICE('Done. Use these credentials for local testing.'))
