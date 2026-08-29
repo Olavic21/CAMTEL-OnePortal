@@ -20,13 +20,18 @@ jobs:
           pip install -r requirements.txt
       - name: Security audit (pip-audit)
         run: |
-          python -m pip install pip-audit || true
-          python -m pip_audit || true
+          python -m pip install pip-audit
+          python -m pip_audit
       - name: Run Django tests (SQLite)
         run: |
           cd backend
           python manage.py migrate --noinput
+          python manage.py makemigrations --check --dry-run
           python manage.py test apps --verbosity 2
+      - name: Catalog data validation
+        run: |
+          cd backend
+          python manage.py validate_camtel_data
 
   backend-tests-postgresql:
     runs-on: ubuntu-latest
@@ -61,13 +66,18 @@ jobs:
           pip install -r requirements.txt
       - name: Security audit (pip-audit)
         run: |
-          python -m pip install pip-audit || true
-          python -m pip_audit || true
+          python -m pip install pip-audit
+          python -m pip_audit
       - name: Run Django tests (PostgreSQL)
         run: |
           cd backend
           python manage.py migrate --noinput
+          python manage.py makemigrations --check --dry-run
           python manage.py test apps --verbosity 2
+      - name: Catalog data validation
+        run: |
+          cd backend
+          python manage.py validate_camtel_data
 
   frontend-tests:
     runs-on: ubuntu-latest
@@ -89,4 +99,4 @@ jobs:
           npm run test -- --run
       - name: Security audit (npm)
         run: |
-          npm audit --audit-level=moderate || true
+          npm audit --audit-level=moderate

@@ -6,6 +6,7 @@ import { useExportProductPdf } from '../hooks/useExportProductPdf';
 import { ProductGallery } from '../components/ProductGallery';
 import { ProductFaqList } from '../components/ProductFaqList';
 import { ProductCard } from '../components/ProductCard';
+import { ProductSpecifications } from '../components/ProductSpecifications';
 import { Breadcrumbs } from '@/shared/components/Breadcrumbs';
 import { Badge } from '@/shared/components/Badge';
 import { Button } from '@/shared/components/Button';
@@ -134,6 +135,8 @@ export default function ProductDetailPage() {
             <h2 className="mb-2 text-lg font-semibold dark:text-neutral-100">{t('products.description')}</h2>
             <p className="whitespace-pre-line text-neutral-600 dark:text-neutral-400">{product.description}</p>
           </div>
+
+          <ProductSpecifications product={product} />
 
           <div id="eligibility-checker" className="mt-8">
             <EligibilityChecker productId={product.id} />

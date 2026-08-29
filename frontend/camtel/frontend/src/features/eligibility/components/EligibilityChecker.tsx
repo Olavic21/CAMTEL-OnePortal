@@ -48,27 +48,41 @@ export function EligibilityChecker({ productId }: { productId: number }) {
       </div>
 
       {result && (
-        <div
-          className={`mt-4 flex items-start gap-2 rounded-lg p-3 text-sm ${
-            result.eligible
-              ? 'bg-accent-50 text-accent-800 dark:bg-accent-900/20 dark:text-accent-300'
-              : 'bg-orange-50 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300'
-          }`}
-        >
-          {result.eligible ? (
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-          ) : (
-            <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="mt-4">
+          {/* P1-3: Show provider mock disclaimer */}
+          {result.provider === 'mock' && (
+            <div className="mb-3 rounded-md bg-amber-50 p-2 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+              ⚠️ {t('eligibility.mockDisclaimer', 'Simulation — aucune transaction réelle n\'est effectuée.')}
+            </div>
           )}
-          <div>
-            <p className="font-medium">
-              {result.eligible ? t('eligibility.eligible') : t('eligibility.notEligible')}
-            </p>
-            <ul className="mt-1 list-inside list-disc text-xs opacity-90">
-              {result.reasons.map((reason, i) => (
-                <li key={i}>{reason}</li>
-              ))}
-            </ul>
+          
+          <div
+            className={`flex items-start gap-2 rounded-lg p-3 text-sm ${
+              result.eligible
+                ? 'bg-accent-50 text-accent-800 dark:bg-accent-900/20 dark:text-accent-300'
+                : 'bg-orange-50 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300'
+            }`}
+          >
+            {result.eligible ? (
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            ) : (
+              <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            )}
+            <div>
+              <p className="font-medium">
+                {result.eligible ? t('eligibility.eligible') : t('eligibility.notEligible')}
+              </p>
+              <ul className="mt-1 list-inside list-disc text-xs opacity-90">
+                {result.reasons.map((reason, i) => (
+                  <li key={i}>{reason}</li>
+                ))}
+              </ul>
+              {result.status && (
+                <p className="mt-2 text-xs opacity-75">
+                  {t('eligibility.status')}: {result.status}
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}

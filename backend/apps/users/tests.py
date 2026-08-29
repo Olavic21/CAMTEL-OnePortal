@@ -45,12 +45,94 @@ class LogoutRevocationTest(APITestCase):
 
 
 class UserModelTest(TestCase):
-    def test_role_default_viewer(self):
+    def test_role_default_customer(self):
+        """RBAC #18 : tout nouveau compte public est CUSTOMER (plus de VISITOR)."""
         u = User.objects.create_user(username='u1', password='TestPassword123!')
-        self.assertEqual(u.role, User.Role.VIEWER)
+        self.assertEqual(u.role, User.Role.CUSTOMER)
+
+    def test_backoffice_roles_never_customer(self):
+        """BACKOFFICE_ROLES n'inclut jamais CUSTOMER ; STAFF_ROLES si."""
+        from apps.core.permissions import BACKOFFICE_ROLES, STAFF_ROLES
+
+        self.assertNotIn('CUSTOMER', BACKOFFICE_ROLES)
+        self.assertNotIn('CUSTOMER', STAFF_ROLES)
+        self.assertTrue({'SUPER_ADMIN', 'ADMIN'} <= BACKOFFICE_ROLES)
+
+    def test_can_access_backoffice_flag(self):
+        """Le predicat partage permission/serializer fait autorite (#20/#21)."""
+        from apps.core.permissions import can_access_backoffice
+
+        customer = User.objects.create_user(
+            username='c1', password='TestPassword123!', role=User.Role.CUSTOMER,
+        )
+        viewer = User.objects.create_user(
+            username='v1', password='TestPassword123!', role=User.Role.VIEWER,
+        )
+        editor = User.objects.create_user(
+            username='e1', password='TestPassword123!', role=User.Role.EDITOR, is_staff=True,
+        )
+        self.assertFalse(can_access_backoffice(customer))
+        self.assertFalse(can_access_backoffice(None))
+        self.assertTrue(can_access_backoffice(viewer))
+        self.assertTrue(can_access_backoffice(editor))
 
     def test_staff_role(self):
         u = User.objects.create_user(
             username='u2', password='TestPassword123!', role=User.Role.SUPER_ADMIN, is_staff=True
         )
         self.assertEqual(u.role, User.Role.SUPER_ADMIN)
+
+
+class AuthApiRBACTest(APITestCase):
+    """Contrats API autour des roles (RBAC #18/#20/#21)."""
+
+    def test_register_creates_customer(self):
+        response = self.client.post('/api/v1/auth/register/', {
+            'username': 'newclient',
+            'email': 'newclient@example.com',
+            'password': 'StrongPass123!',
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['user']['role'], 'customer')
+        self.assertFalse(response.data['user']['can_access_backoffice'])
+
+    def test_me_returns_role_and_backoffice_flag(self):
+        admin = User.objects.create_user(
+            username='adm1', password='TestPassword123!',
+            role=User.Role.ADMIN, is_staff=True,
+        )
+        self.client.force_authenticate(user=admin)
+        response = self.client.get('/api/v1/auth/me/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['role'], 'admin')
+        self.assertTrue(response.data['can_access_backoffice'])
+
+    def test_legacy_visitor_input_maps_to_customer(self):
+        """Shim compat : assigner 'visitor' cree un CUSTOMER (RBAC #18)."""
+        admin = User.objects.create_user(
+            username='adm2', password='TestPassword123!',
+            role=User.Role.SUPER_ADMIN, is_staff=True,
+        )
+        target = User.objects.create_user(
+            username='legacy1', password='TestPassword123!', role=User.Role.CUSTOMER,
+        )
+        self.client.force_authenticate(user=admin)
+        response = self.client.patch(
+            f'/api/v1/users/{target.pk}/', {'role': 'visitor'}, format='json',
+        )
+        self.assertIn(response.status_code, {status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST})
+        if response.status_code == status.HTTP_200_OK:
+            target.refresh_from_db()
+            self.assertEqual(target.role, User.Role.CUSTOMER)
+            self.assertEqual(response.data['role'], 'customer')
+
+    def test_customer_cannot_manage_users(self):
+        """Un CUSTOMER ne peut jamais acceder a la gestion des comptes."""
+        customer = User.objects.create_user(
+            username='cust9', password='TestPassword123!', role=User.Role.CUSTOMER,
+        )
+        self.client.force_authenticate(user=customer)
+        response = self.client.get('/api/v1/users/')
+        self.assertIn(response.status_code, {
+            status.HTTP_403_FORBIDDEN, status.HTTP_401_UNAUTHORIZED,
+        })

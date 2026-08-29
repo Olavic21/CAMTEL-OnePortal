@@ -11,7 +11,10 @@ Idempotent : relancer la commande ne cree pas de doublons (upsert par slug).
 Usage :
     python manage.py import_camtel_catalog
     python manage.py import_camtel_catalog --dir data/camtel_catalog/2026-08-25
+    python manage.py import_camtel_catalog --snapshot 2026-08-25 --verbose
     python manage.py import_camtel_catalog --dry-run
+    python manage.py import_camtel_catalog --dry-run --strict
+    python manage.py import_camtel_catalog --source "hosting.camtel.cm" --update
 """
 import datetime
 import json
@@ -73,7 +76,27 @@ class Command(BaseCommand):
             '--dir', default=None,
             help='Repertoire snapshot (defaut: dernier dossier date de data/camtel_catalog).'
         )
+        parser.add_argument(
+            '--snapshot', default=None,
+            help='Alias de --dir : date YYYY-MM-DD ou chemin du snapshot.'
+        )
         parser.add_argument('--dry-run', action='store_true', help='Valide sans ecrire en base.')
+        parser.add_argument(
+            '--strict', action='store_true',
+            help='Echoue (exit code 1) si le moindre WARNING/skip est emis.'
+        )
+        parser.add_argument(
+            '--source', default=None,
+            help="Filtre les entrees sur une source (nom ou URL contient la valeur)."
+        )
+        parser.add_argument(
+            '--update', action='store_true',
+            help='Met a jour uniquement les produits deja presents (aucune creation).'
+        )
+        parser.add_argument(
+            '--verbose', action='store_true',
+            help='Liste chaque offre creee/mise a jour.'
+        )
 
     # ------------------------------------------------------------------ utils
     def _snapshot_dir(self, explicit=None):
@@ -123,6 +146,19 @@ class Command(BaseCommand):
         brand = entry.get('brand') or 'CAMTEL'
         if brand not in KNOWN_BRANDS:
             return None, [f'{entry["slug"]}: marque inconnue "{brand}"']
+        
+        # Règle PHASE 6 : data_origin=OFFICIAL exige source_url, source_name
+        data_origin = entry.get('data_origin', 'OFFICIAL')
+        if data_origin == 'OFFICIAL':
+            source_url = entry.get('source_url') or ''
+            source_name = entry.get('source_name') or ''
+            if not source_url:
+                return None, [f'{entry["slug"]}: data_origin=OFFICIAL exige source_url']
+            if not source_name:
+                return None, [f'{entry["slug"]}: data_origin=OFFICIAL exige source_name']
+            if not source_url.startswith(('http://', 'https://')):
+                return None, [f'{entry["slug"]}: source_url invalide pour OFFICIAL (doit commencer par http:// ou https://)']
+        
         price = entry.get('price')
         if price is not None:
             try:
@@ -145,7 +181,7 @@ class Command(BaseCommand):
         if source_url and not source_url.startswith(('http://', 'https://')):
             warnings.append(f'{entry["slug"]}: URL source invalide -> vide')
             source_url = ''
-        if not source_url:
+        if not source_url and data_origin != 'OFFICIAL':
             warnings.append(f'{entry["slug"]}: ATTENTION aucune source officielle renseignee')
         slug = slugify(entry['slug'])
         if not slug:
@@ -182,19 +218,31 @@ class Command(BaseCommand):
             'source_url': source_url,
             'source_name': entry.get('source_name', ''),
             'eligibility_note': entry.get('features_note_fr', ''),
+            'data_origin': data_origin,
         }
         return normalized, warnings
 
     # ------------------------------------------------------------------ import
     def handle(self, *args, **options):
         dry_run = options.get('dry_run', False)
-        directory = self._snapshot_dir(options.get('dir'))
+        strict = options.get('strict', False)
+        source_filter = (options.get('source') or '').strip()
+        update_only = options.get('update', False)
+        verbose = options.get('verbose', False)
+        # --snapshot est un alias de --dir (date YYYY-MM-DD ou chemin).
+        directory = self._snapshot_dir(options.get('dir') or options.get('snapshot'))
         self.stdout.write(f'Snapshot: {directory}')
 
         with open(os.path.join(directory, 'sources.json'), encoding='utf-8') as fh:
             sources = json.load(fh)
         snapshot_date = sources.get('snapshot_date') or datetime.date.today().isoformat()
         checked_at = datetime.date.fromisoformat(snapshot_date)
+
+        # 0. Taxonomie officielle — services + segments (idempotent).
+        from apps.products.taxonomy import ensure_services_and_segments
+
+        if not dry_run:
+            ensure_services_and_segments()
 
         # 1. Categories officielles (#8) — upsert idempotent
         categories = {}
@@ -221,6 +269,14 @@ class Command(BaseCommand):
             *self._load(directory, 'offers.json'),
             *self._load(directory, 'services.json'),
         ]
+        if source_filter:
+            needle = source_filter.lower()
+            entries = [
+                e for e in entries
+                if needle in (e.get('source_name') or '').lower()
+                or needle in (e.get('source_url') or '').lower()
+            ]
+            self.stdout.write(f'Filtre source "{source_filter}": {len(entries)} entrees')
 
         # 2. Validation + normalisation (#25)
         validated = []
@@ -232,61 +288,144 @@ class Command(BaseCommand):
             report['warnings'].extend(warnings)
             validated.append(norm)
 
-        # 3. Upsert idempotent par slug (#24 : pas de doublon au re-run)
-        for norm in validated:
-            category = None if dry_run else categories[norm['category_slug']]
-            values = dict(
-                name=norm['name'],
-                name_en=norm['name_en'],
-                description=norm['description'],
-                description_en=norm['description_en'],
-                short_description=norm['description'][:500],
-                short_description_en=(norm['description_en'] or norm['description'])[:500],
-                brand=norm['brand'],
-                subcategory=norm['subcategory'],
-                service_type=norm['service_type'],
-                offer_type=norm['offer_type'],
-                segment=norm['segment'],
-                status=norm['status'],
-                pricing_type=norm['pricing_type'],
-                price=norm['price'],
-                yearly_price=norm['yearly_price'],
-                currency=norm['currency'],
-                billing_period=norm['billing_period'],
-                technology=norm['technology'],
-                availability=norm['availability'],
-                speed=norm['speed'],
-                coverage=norm['coverage'],
-                subscription_method=norm['subscription_method'] or '',
-                terms=norm['terms'],
-                features=norm['features'],
-                specs=norm['specs'],
-                eligibility=norm['eligibility_note'],
-                source_url=norm['source_url'],
-                source_name=norm['source_name'],
-                source_checked_at=checked_at if norm['source_url'] else None,
-                last_verified_at=checked_at if norm['source_url'] else None,
-                data_origin=Product.DataOrigin.OFFICIAL,
-                product_type=Product.ProductType.SERVICE_OFFER,
-                is_active=True,
-                is_published=True,
-            )
-            existing = None if dry_run else Product.objects.filter(slug=norm['slug']).first()
-            if existing is None and not dry_run:
-                Product.objects.create(category=category, slug=norm['slug'], **values)
-                report['created'] += 1
-            elif existing is not None:
-                for field, value in values.items():
-                    setattr(existing, field, value)
-                existing.category = category
-                existing.save()
-                report['updated'] += 1
-            else:
-                report['created'] += 1
+        # 3. Upsert idempotent par slug (#24 : pas de doublon au re-run).
+        # Transaction : toute erreur critique annule l'import complet
+        # (rollback) — la base n'est jamais laissee dans un etat partiel.
+        from django.db import transaction
+
+        from apps.products.taxonomy import apply_service_and_segments
+
+        def _upsert():
+            for norm in validated:
+                category = None if dry_run else categories[norm['category_slug']]
+                values = dict(
+                    name=norm['name'],
+                    name_en=norm['name_en'],
+                    description=norm['description'],
+                    description_en=norm['description_en'],
+                    short_description=norm['description'][:500],
+                    short_description_en=(norm['description_en'] or norm['description'])[:500],
+                    brand=norm['brand'],
+                    subcategory=norm['subcategory'],
+                    service_type=norm['service_type'],
+                    offer_type=norm['offer_type'],
+                    segment=norm['segment'],
+                    status=norm['status'],
+                    pricing_type=norm['pricing_type'],
+                    price=norm['price'],
+                    yearly_price=norm['yearly_price'],
+                    currency=norm['currency'],
+                    billing_period=norm['billing_period'],
+                    technology=norm['technology'],
+                    availability=norm['availability'],
+                    speed=norm['speed'],
+                    coverage=norm['coverage'],
+                    subscription_method=norm['subscription_method'] or '',
+                    terms=norm['terms'],
+                    features=norm['features'],
+                    specs=norm['specs'],
+                    eligibility=norm['eligibility_note'],
+                    source_url=norm['source_url'],
+                    source_name=norm['source_name'],
+                    source_checked_at=checked_at if norm['source_url'] else None,
+                    last_verified_at=checked_at if norm['source_url'] else None,
+                    data_origin=norm.get('data_origin', Product.DataOrigin.OFFICIAL),
+                    product_type=Product.ProductType.SERVICE_OFFER,
+                    is_active=True,
+                    is_published=True,
+                )
+                existing = None if dry_run else Product.objects.filter(slug=norm['slug']).first()
+                if existing is None and not dry_run:
+                    if update_only:
+                        continue
+                    product = Product.objects.create(category=category, slug=norm['slug'], **values)
+                    apply_service_and_segments(product)
+                    self._upsert_product_source(product, norm, checked_at)
+                    report['created'] += 1
+                    if verbose:
+                        self.stdout.write(f'  + {norm["slug"]}')
+                elif existing is not None:
+                    for field, value in values.items():
+                        setattr(existing, field, value)
+                    existing.category = category
+                    existing.save()
+                    apply_service_and_segments(existing)
+                    self._upsert_product_source(existing, norm, checked_at)
+                    report['updated'] += 1
+                    if verbose:
+                        self.stdout.write(f'  ~ {norm["slug"]}')
+                else:
+                    if not update_only:
+                        report['created'] += 1
+
+        if dry_run:
+            _upsert()
+        else:
+            with transaction.atomic():
+                _upsert()
 
         self._import_promotions(directory, checked_at, dry_run, report)
         self._import_faqs(directory, dry_run, report)
         self._print_report(report, validated, dry_run)
+
+        if strict and (report['warnings'] or report['skipped']):
+            raise CommandError(
+                f'Import STRICT : {len(report["warnings"])} warning(s), '
+                f'{len(report["skipped"])} entree(s) ignoree(s).'
+            )
+
+    def _upsert_product_source(self, product, norm, checked_at):
+        """Cree/rafraichit la ProductSource structuree du produit (#12).
+
+        Idempotent : la source primaire d'un produit est reutilisee (pas de
+        doublon au re-run). Le statut de verification suit la provenance.
+        """
+        from apps.products.models import ProductSource
+
+        source_url = norm.get('source_url') or ''
+        data_origin = norm.get('data_origin', Product.DataOrigin.OFFICIAL)
+        status_map = {
+            Product.DataOrigin.OFFICIAL: ProductSource.VerificationStatus.OFFICIAL,
+            Product.DataOrigin.MANUAL: ProductSource.VerificationStatus.MANUAL,
+            Product.DataOrigin.HISTORICAL: ProductSource.VerificationStatus.HISTORICAL,
+            Product.DataOrigin.DEMO: ProductSource.VerificationStatus.DEMO,
+            Product.DataOrigin.MOCK: ProductSource.VerificationStatus.MOCK,
+            Product.DataOrigin.REQUIRES_VALIDATION: (
+                ProductSource.VerificationStatus.REQUIRES_VALIDATION
+            ),
+        }
+        verification_status = status_map.get(
+            data_origin, ProductSource.VerificationStatus.REQUIRES_VALIDATION,
+        )
+        if not source_url and verification_status == ProductSource.VerificationStatus.OFFICIAL:
+            # Garde-fou : jamais un OFFICIAL sans URL (la validation amont
+            # filtre deja ce cas ; ceinture + bretelles).
+            verification_status = ProductSource.VerificationStatus.REQUIRES_VALIDATION
+        source, created = ProductSource.objects.get_or_create(
+            product=product,
+            source_name=norm.get('source_name') or 'Source inconnue',
+            is_primary=True,
+            defaults={
+                'source_url': source_url,
+                'source_type': ProductSource.SourceType.SNAPSHOT,
+                'verification_status': verification_status,
+                'last_verified_at': checked_at if source_url else None,
+                'notes': f'Import snapshot {checked_at.isoformat()}',
+            },
+        )
+        if not created:
+            updated = False
+            if source.source_url != source_url:
+                source.source_url = source_url
+                updated = True
+            if source.verification_status != verification_status:
+                source.verification_status = verification_status
+                updated = True
+            if source_url and source.last_verified_at != checked_at:
+                source.last_verified_at = checked_at
+                updated = True
+            if updated:
+                source.save()
 
     def _import_promotions(self, directory, checked_at, dry_run, report):
         """Promotions separees des offres permanentes (#18)."""

@@ -9,17 +9,42 @@ from django.db.models import F, Q
 from apps.core.permissions import IsAdminUser, ReadPublicWriteAdminOrEditor
 from apps.core.throttling import SearchRateThrottle
 
-from .models import Product, ProductFAQ, ProductImage
+from .models import Product, ProductFAQ, ProductImage, Segment, Service
 from .serializers import (
     ProductCompareSerializer,
     ProductFAQSerializer,
     ProductImageSerializer,
     ProductSerializer,
+    SegmentSerializer,
+    ServiceSerializer,
 )
 
 
+class ServiceViewSet(viewsets.ReadOnlyModelViewSet):
+    """Verticales de service (fixes/mobiles/transport/data-center) — public.
+
+    GET /api/v1/services/  et  GET /api/v1/services/{slug}/
+    """
+
+    queryset = Service.objects.filter(status=Service.Status.ACTIVE).order_by('display_order', 'name')
+    serializer_class = ServiceSerializer
+    lookup_field = 'slug'
+    lookup_value_regex = '[^/]+'
+
+
+class SegmentViewSet(viewsets.ReadOnlyModelViewSet):
+    """Segments (particulier/professionnel/entreprise/administration) — public."""
+
+    queryset = Segment.objects.filter(is_active=True).order_by('display_order', 'name')
+    serializer_class = SegmentSerializer
+    lookup_field = 'slug'
+    lookup_value_regex = '[^/]+'
+
+
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all().select_related('category').prefetch_related('images', 'faqs')
+    queryset = Product.objects.all().select_related('category', 'service').prefetch_related(
+        'images', 'faqs', 'segments', 'sources',
+    )
     serializer_class = ProductSerializer
     permission_classes = [ReadPublicWriteAdminOrEditor]
     lookup_field = 'slug'
@@ -68,10 +93,21 @@ class ProductViewSet(viewsets.ModelViewSet):
         category = params.get('category')
         if category:
             queryset = queryset.filter(category__slug=category)
-        # Filtre par segment commercial (via la categorie)
+        # Filtre par segment commercial (via la categorie) + nouveau multi-segment
         segment = params.get('segment')
         if segment:
-            queryset = queryset.filter(category__segment=segment)
+            # Compat : accepte aussi bien les valeurs legacy (grand_public/
+            # entreprise) que les codes Segment (PARTICULIER, ...).
+            segment_upper = segment.upper()
+            legacy_map = {'GRAND_PUBLIC': 'PARTICULIER', 'ENTREPRISE': 'ENTREPRISE'}
+            code = legacy_map.get(segment_upper, segment_upper)
+            queryset = queryset.filter(
+                Q(segment=code) | Q(segments__code=code) | Q(category__segment=segment_upper.lower())
+            ).distinct()
+        # Nouveau filtre verticale de service (cahier des charges #16).
+        service = params.get('service')
+        if service:
+            queryset = queryset.filter(service__slug=service)
         # Nouveaux filtres metier offre (PHASE 2)
         offer_type = params.get('offer_type')
         if offer_type:

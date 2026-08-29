@@ -25,6 +25,7 @@ class SubscriptionRequest(models.Model):
     """
 
     class Status(models.TextChoices):
+        # Statuts legacy (conserves — consommes par le frontend TypeScript).
         PENDING = 'PENDING', 'En attente'
         UNDER_REVIEW = 'UNDER_REVIEW', 'En cours de traitement'
         ADDITIONAL_INFO_REQUIRED = 'ADDITIONAL_INFO_REQUIRED', 'Informations complementaires requises'
@@ -33,6 +34,47 @@ class SubscriptionRequest(models.Model):
         ACTIVATED = 'ACTIVATED', 'Active'
         REJECTED = 'REJECTED', 'Rejete'
         CANCELLED = 'CANCELLED', 'Annule'
+        # Statuts alignes cahier des charges #24 (ajout, sans retrait).
+        DRAFT = 'DRAFT', 'Brouillon'
+        ACTIVATING = 'ACTIVATING', 'En cours d activation'
+        # ACTIVE est l'etat courant d'un service actif (ACTIVATED en est la
+        # version legacy "one-shot"). Map : ACTIVATED == ACTIVE.
+        ACTIVE = 'ACTIVE', 'Actif'
+        SUSPENDED = 'SUSPENDED', 'Suspendu'
+        # COMPLETED (service resilie / termine, fin de vie de la souscription).
+        COMPLETED = 'COMPLETED', 'Termine'
+
+# Matrice des transitions autorisees (#24) — chaque valeur liste les
+    # nouveaux statuts valides depuis le statut courant. Les transitions
+    # "retour arriere" restent autorisees par un admin pour corriger une
+    # erreur : la matrice couvre le flux nominal.
+    ALLOWED_TRANSITIONS = {
+        'PENDING': {'UNDER_REVIEW', 'REJECTED', 'CANCELLED', 'APPROVED', 'ADDITIONAL_INFO_REQUIRED'},
+        'UNDER_REVIEW': {'APPROVED', 'REJECTED', 'ADDITIONAL_INFO_REQUIRED', 'PENDING', 'CANCELLED'},
+        'ADDITIONAL_INFO_REQUIRED': {'UNDER_REVIEW', 'PENDING', 'CANCELLED'},
+        'APPROVED': {'ACTIVATING', 'SCHEDULED', 'ACTIVE', 'ACTIVATED', 'REJECTED', 'CANCELLED'},
+        'SCHEDULED': {'ACTIVATING', 'ACTIVE', 'ACTIVATED', 'CANCELLED'},
+        'ACTIVATING': {'ACTIVE', 'ACTIVATED', 'SUSPENDED', 'REJECTED', 'CANCELLED'},
+        'ACTIVE': {'SUSPENDED', 'COMPLETED', 'CANCELLED'},
+        'ACTIVATED': {'SUSPENDED', 'COMPLETED', 'CANCELLED'},
+        'SUSPENDED': {'ACTIVE', 'ACTIVATED', 'COMPLETED', 'CANCELLED'},
+        'REJECTED': {'PENDING', 'UNDER_REVIEW'},
+        'CANCELLED': set(),
+        'COMPLETED': set(),
+        'DRAFT': {'PENDING', 'CANCELLED'},
+    }
+    TERMINAL_STATUSES = {'REJECTED', 'CANCELLED', 'COMPLETED'}
+    LEGACY_ALIASES = {
+        'SUBMITTED': 'PENDING',
+    }
+
+    @classmethod
+    def normalize(cls, value):
+        """Normalise un code de statut (gestion des aliases cahier des charges)."""
+        value = (value or '').strip().upper()
+        if value in cls.LEGACY_ALIASES:
+            return cls.LEGACY_ALIASES[value]
+        return value
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

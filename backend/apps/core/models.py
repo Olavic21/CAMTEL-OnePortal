@@ -31,10 +31,20 @@ class ActivityLog(models.Model):
 
 
 class Notification(models.Model):
+    """Notification system (subscription / payment / ticket / activation / system)."""
+
+    class Channel(models.TextChoices):
+        SUBSCRIPTION = 'SUBSCRIPTION', 'Subscription'
+        PAYMENT = 'PAYMENT', 'Payment'
+        TICKET = 'TICKET', 'Support ticket'
+        ACTIVATION = 'ACTIVATION', 'Activation'
+        SYSTEM = 'SYSTEM', 'System'
+
     TYPE_CHOICES = (
         ('info', 'Info'),
         ('success', 'Success'),
         ('warning', 'Warning'),
+        ('error', 'Error'),
     )
 
     user = models.ForeignKey(
@@ -44,14 +54,21 @@ class Notification(models.Model):
         null=True,
         blank=True,
     )
+    channel = models.CharField(
+        max_length=32, choices=Channel.choices, default=Channel.SYSTEM,
+    )
     message = models.CharField(max_length=500)
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='info')
-    is_read = models.BooleanField(default=False)
     link = models.CharField(max_length=500, blank=True, default='')
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_read']),
+        ]
 
     def __str__(self):
         return self.message[:50]
@@ -64,12 +81,20 @@ class AnalyticsEvent(models.Model):
     EVENT_TYPE_CHOICES = (
         ('offer_view', 'offer_view'),
         ('offer_compare', 'offer_compare'),
+        ('service_view', 'service_view'),
+        ('product_view', 'product_view'),
         ('subscription_started', 'subscription_started'),
         ('subscription_submitted', 'subscription_submitted'),
+        ('subscription_approved', 'subscription_approved'),
+        ('subscription_activated', 'subscription_activated'),
         ('subscription_completed', 'subscription_completed'),
+        ('payment_started', 'payment_started'),
+        ('payment_completed', 'payment_completed'),
         ('search', 'search'),
         ('faq_view', 'faq_view'),
         ('chatbot_question', 'chatbot_question'),
+        ('recommendation_clicked', 'recommendation_clicked'),
+        ('comparison', 'comparison'),
     )
 
     user = models.ForeignKey(
@@ -151,3 +176,54 @@ class TicketMessage(models.Model):
 
     def __str__(self):
         return f'Message #{self.pk} sur ticket #{self.ticket_id}'
+
+
+class Payment(models.Model):
+    """Trace persistante d'une initiation de paiement (Phase 10 — Fiabilité).
+
+    Le montant est TOUJOURS calcule cote serveur depuis le produit officiel ;
+    la reference est unique et une cle d'idempotence evite toute double
+    execution d'une meme transaction lors de retries client.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = 'PENDING'
+        COMPLETED = 'COMPLETED'
+        FAILED = 'FAILED'
+        CANCELLED = 'CANCELLED'
+
+    reference = models.CharField(max_length=64, unique=True, editable=False)
+    idempotency_key = models.CharField(max_length=128, blank=True, default='')
+    transaction_id = models.CharField(max_length=64, blank=True, default='')
+    provider = models.CharField(max_length=32, default='mock')
+    product = models.ForeignKey(
+        'products.Product', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='payments',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='payments',
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=8, default='XAF')
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.PENDING,
+    )
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['provider', 'transaction_id']),
+        ]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(amount__gt=0), name='payment_amount_positive'),
+        ]
+
+    def __str__(self):
+        return f'{self.reference} ({self.status}) - {self.amount} {self.currency}'
+
