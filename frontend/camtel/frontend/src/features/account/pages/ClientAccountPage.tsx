@@ -43,7 +43,7 @@ export default function ClientAccountPage() {
         <h2 className="mb-3 text-lg font-semibold text-neutral-900 dark:text-neutral-100">
           {t('account.subscriptionRequests')}
         </h2>
-        {user.role === 'visitor' ? (
+        {user.role === 'customer' || user.role === 'viewer' ? (
           <p className="text-sm text-neutral-500 dark:text-neutral-400">{t('account.visitorNoRequests')}</p>
         ) : (
           <Link
@@ -55,7 +55,7 @@ export default function ClientAccountPage() {
         )}
       </div>
 
-      {user.role === 'visitor' && (
+      {(user.role === 'customer' || user.role === 'viewer') && (
         <div className="mt-8 rounded-xl border border-primary-100 bg-primary-50 p-5 dark:border-primary-900 dark:bg-primary-950/30">
           <p className="font-medium text-primary-900 dark:text-primary-200">{t('account.wantMore')}</p>
           <p className="mt-1 text-sm text-primary-800 dark:text-primary-300">{t('account.wantMoreHint')}</p>

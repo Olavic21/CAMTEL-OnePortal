@@ -39,9 +39,11 @@ export default function LoginPage() {
     setServerError(null);
     try {
       const me = await login(values.username, values.password);
-      // Un simple visiteur n'a pas acces au back-office : on le renvoie
-      // vers le site public plutot que vers /admin (qui le bloquerait).
-      const defaultDestination = me.role === 'visitor' ? '/' : '/admin';
+      // Un simple client (CUSTOMER) n'a pas acces au back-office : on le
+      // renvoie vers le site public plutot que vers /admin (qui le bloquerait).
+      // Le backend reste l'autorite (can_access_backoffice) ; le test local
+      // n'est qu'un filet pour l'UX.
+      const defaultDestination = me.role === 'customer' || me.role === 'viewer' ? '/' : '/admin';
       const from = (location.state as { from?: Location })?.from?.pathname ?? defaultDestination;
       navigate(from, { replace: true });
     } catch {

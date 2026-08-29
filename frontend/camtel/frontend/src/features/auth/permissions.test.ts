@@ -25,9 +25,10 @@ describe('PERMISSIONS matrix', () => {
     expect(PERMISSIONS.delete_news).not.toContain('editor');
   });
 
-  it('never grants visitor any permission', () => {
+  it('never grants customer any back-office permission (cahier des charges #18)', () => {
     for (const roles of Object.values(PERMISSIONS)) {
-      expect(roles).not.toContain('visitor');
+      expect(roles).not.toContain('customer');
+      expect(roles).not.toContain('visitor'); // role legacy supprime
     }
   });
 
@@ -45,9 +46,9 @@ describe('getAssignableRoles', () => {
     expect(roles).toContain('super_admin');
   });
 
-  it('lets admin promote to editor/product_manager/visitor only, never admin', () => {
+  it('lets admin promote to editor/product_manager/customer only, never admin', () => {
     const roles = getAssignableRoles('admin');
-    expect(roles).toEqual(expect.arrayContaining(['editor', 'product_manager', 'visitor']));
+    expect(roles).toEqual(expect.arrayContaining(['editor', 'product_manager', 'customer']));
     expect(roles).not.toContain('admin');
     expect(roles).not.toContain('super_admin');
   });
@@ -55,7 +56,7 @@ describe('getAssignableRoles', () => {
   it('lets no other role assign anything', () => {
     expect(getAssignableRoles('editor')).toEqual([]);
     expect(getAssignableRoles('product_manager')).toEqual([]);
-    expect(getAssignableRoles('visitor')).toEqual([]);
+    expect(getAssignableRoles('customer')).toEqual([]);
   });
 });
 
@@ -63,7 +64,7 @@ describe('canManageAccount', () => {
   it('lets super_admin manage every account, including other admins', () => {
     expect(canManageAccount('super_admin', 'admin')).toBe(true);
     expect(canManageAccount('super_admin', 'super_admin')).toBe(true);
-    expect(canManageAccount('super_admin', 'visitor')).toBe(true);
+    expect(canManageAccount('super_admin', 'customer')).toBe(true);
   });
 
   it('prevents admin from managing another admin or a super_admin account', () => {
@@ -71,14 +72,14 @@ describe('canManageAccount', () => {
     expect(canManageAccount('admin', 'super_admin')).toBe(false);
   });
 
-  it('lets admin manage editor/product_manager/visitor accounts', () => {
+  it('lets admin manage editor/product_manager/customer accounts', () => {
     expect(canManageAccount('admin', 'editor')).toBe(true);
     expect(canManageAccount('admin', 'product_manager')).toBe(true);
-    expect(canManageAccount('admin', 'visitor')).toBe(true);
+    expect(canManageAccount('admin', 'customer')).toBe(true);
   });
 
   it('prevents non-admin roles from managing any account', () => {
-    expect(canManageAccount('editor', 'visitor')).toBe(false);
-    expect(canManageAccount('product_manager', 'visitor')).toBe(false);
+    expect(canManageAccount('editor', 'customer')).toBe(false);
+    expect(canManageAccount('product_manager', 'customer')).toBe(false);
   });
 });

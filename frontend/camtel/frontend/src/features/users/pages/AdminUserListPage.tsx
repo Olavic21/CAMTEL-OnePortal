@@ -13,7 +13,7 @@ import { Modal } from '@/shared/components/Modal';
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '../hooks/useUsers';
 import { useToast } from '@/shared/components/Toast';
 import { useAuth } from '@/features/auth/hooks/useAuth';
-import { getAssignableRoles, canManageAccount } from '@/features/auth/permissions';
+import { getAssignableRoles, canManageAccount, type MainUserRole } from '@/features/auth/permissions';
 import type { User, UserRole } from '@/shared/types';
 
 // Champs alignes sur le serialiseur DRF de creation d'utilisateur (section 8.8),
@@ -23,14 +23,14 @@ function buildSchema(t: TFunction) {
   return z.object({
     username: z.string().min(3, t('validation.minLength', { count: 3 })),
     email: z.string().email(t('validation.invalidEmail')),
-    role: z.enum(['super_admin', 'admin', 'product_manager', 'editor', 'visitor']),
+    role: z.enum(['super_admin', 'admin', 'product_manager', 'editor', 'customer']),
     password: z.string().min(8, t('validation.minLength', { count: 8 })),
   });
 }
 type FormValues = z.infer<ReturnType<typeof buildSchema>>;
 
 // Gestion des comptes internes — regle metier du porteur du projet :
-// - N'importe qui cree lui-meme un compte "visitor" via /inscription.
+// - N'importe qui cree lui-meme un compte client ("customer") via /inscription.
 // - Un Admin peut promouvoir un compte en Editeur/Gestionnaire (jamais en Admin).
 // - Seul un Super Admin peut attribuer/retirer le role Admin, et gerer les
 //   comptes deja Admin/Super Admin (voir getAssignableRoles/canManageAccount).
@@ -50,7 +50,9 @@ export default function AdminUserListPage() {
     admin: t('roles.admin'),
     product_manager: t('roles.product_manager'),
     editor: t('roles.editor'),
-    visitor: t('roles.visitor'),
+    customer: t('roles.customer'),
+    // Legacy (compte VIEWER en base) : affiche comme un simple client.
+    viewer: t('roles.customer'),
   };
 
   const assignableRoles = currentUser ? getAssignableRoles(currentUser.role) : [];
@@ -107,7 +109,7 @@ export default function AdminUserListPage() {
             {/* L'option courante reste affichee meme si elle n'est plus attribuable
                (ex: Admin qui voit un compte redescendu en Visiteur), pour ne
                jamais masquer l'etat reel du compte. */}
-            {!assignableRoles.includes(u.role) && <option value={u.role}>{roleLabel[u.role]}</option>}
+            {!assignableRoles.includes(u.role as MainUserRole) && <option value={u.role}>{roleLabel[u.role]}</option>}
             {assignableRoles.map((r) => (
               <option key={r} value={r}>
                 {roleLabel[r]}

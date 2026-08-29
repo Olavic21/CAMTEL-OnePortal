@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/authApi';
 import { setAccessToken, clearTokens, getAccessToken } from '@/shared/lib/tokenStorage';
 import { mockAuthStore } from '@/shared/lib/mockAuthStore';
-import { PERMISSIONS, type Permission } from '../permissions';
+import { PERMISSIONS, canAccessBackoffice as computeBackofficeAccess, type Permission } from '../permissions';
 import type { User, UserRole } from '@/shared/types';
 
 interface AuthContextValue {
@@ -16,6 +16,8 @@ interface AuthContextValue {
   logout: () => void;
   hasRole: (...roles: UserRole[]) => boolean;
   can: (permission: Permission) => boolean;
+  /** Switch PORTAL <-> BACKOFFICE (#20/#21) : source de verite backend, fallback local. */
+  canAccessBackoffice: boolean;
   isDemoMode: boolean;
 }
 
@@ -23,13 +25,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 // Hierarchie des roles (section 9.1/9.3), utilisee UNIQUEMENT pour les gardes
 // generales de type "au moins editeur/gestionnaire" (ex: RequireAuth roles={['editor']}
-// pour bloquer l'entree dans /admin aux simples visiteurs).
-// Pour les permissions metier fines (qui peut publier un produit, gerer les
-// messages, etc.), on utilise `can()` + la matrice PERMISSIONS (section 9.2) :
-// product_manager et editor sont des roles PARALLELES, pas hierarchiques
-// entre eux, donc une simple comparaison de rang ne suffit pas.
+// pour bloquer l'entree dans /admin aux simples clients). Un client (CUSTOMER,
+// ex-"visitor" — cahier des charges #18) n'a jamais acces au back-office ;
+// la verification reelle reste faite cote backend (can_access_backoffice +
+// permissions sur chaque endpoint).
 const ROLE_RANK: Record<UserRole, number> = {
-  visitor: 0,
+  viewer: 0,
+  customer: 0,
   editor: 1,
   product_manager: 1,
   admin: 2,
@@ -91,15 +93,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return me;
   }
 
-  // Inscription publique : cree toujours un compte "visitor" (jamais un
+  // Inscription publique : cree toujours un compte "customer" (jamais un
   // role choisi par le formulaire) — coherent avec la regle "tout le monde
-  // peut au minimum creer un compte visiteur".
+  // peut au minimum creer un compte client" (cahier des charges #18 :
+  // plus aucun role VISITOR ; le minimum est CUSTOMER).
   async function register(username: string, email: string, password: string) {
     if (DEMO_MODE) {
       if (mockAuthStore.usernameOrEmailTaken(username, email)) {
         throw new Error('Identifiant ou e-mail deja utilise');
       }
-      const created = mockAuthStore.create({ username, email, role: 'visitor', password });
+      const created = mockAuthStore.create({ username, email, role: 'customer', password });
       localStorage.setItem(SESSION_KEY, String(created.id));
       setUser(created);
       return created;
@@ -141,6 +144,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return PERMISSIONS[permission].includes(user.role);
   }
 
+  const canAccessBackoffice = computeBackofficeAccess(user);
+
   return (
     <AuthContext.Provider
       value={{
@@ -152,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         hasRole,
         can,
+        canAccessBackoffice,
         isDemoMode: DEMO_MODE,
       }}
     >

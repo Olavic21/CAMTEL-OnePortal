@@ -17,6 +17,14 @@ interface MockAccount extends User {
 
 const STORAGE_KEY = 'camtel_demo_accounts';
 
+// Roles legacy qui ne doivent plus exister (cahier des charges #18 : aucun
+// role VISITOR). Tout compte stocke avec un ancien role est normalise en
+// "customer" (le minimum autorise) au chargement.
+const LEGACY_ROLE_MAP: Record<string, UserRole> = {
+  visitor: 'customer',
+  viewer: 'customer',
+};
+
 // Compte Super Admin initial (bootstrap). Identifiants affiches sur la page
 // de connexion en mode demo pour permettre la toute premiere connexion.
 const BOOTSTRAP_SUPER_ADMIN: MockAccount = {
@@ -29,12 +37,19 @@ const BOOTSTRAP_SUPER_ADMIN: MockAccount = {
   password: 'CamtelAdmin2026!',
 };
 
+function normalizeRole(role: string): UserRole {
+  return LEGACY_ROLE_MAP[role] ?? (role as UserRole);
+}
+
 function loadStore(): MockAccount[] {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as MockAccount[];
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Normalise les roles legacy (visitor/viewer -> customer) a la lecture.
+        return parsed.map((a) => ({ ...a, role: normalizeRole(a.role) }));
+      }
     } catch {
       // stockage corrompu -> on reseed ci-dessous
     }

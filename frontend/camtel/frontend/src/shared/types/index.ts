@@ -19,7 +19,11 @@ export type UserRole =
   | 'admin'
   | 'product_manager'
   | 'editor'
-  | 'visitor';
+  | 'customer'
+  // Legacy : un compte VIEWER encore stocke en DB sort en 'viewer' (le backend
+  // n'emait plus jamais 'visitor' — cahier des charges #18). Traite comme un
+  // simple client : jamais de back-office.
+  | 'viewer';
 
 export interface User {
   id: number;
@@ -28,6 +32,12 @@ export interface User {
   first_name?: string;
   last_name?: string;
   role: UserRole;
+  /**
+   * Fourni par le backend (/auth/me, UserSerializer) pour le switch
+   * PORTAL <-> BACKOFFICE (cahier des charges #20/#21). Le backend reste
+   * l'autorite reelle : ce champ ne sert qu'a l'UX (masquer/afficher).
+   */
+  can_access_backoffice?: boolean;
   is_active: boolean;
   date_joined: string;
   last_login?: string | null;

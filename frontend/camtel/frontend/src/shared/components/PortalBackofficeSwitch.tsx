@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import { Building2, Globe } from 'lucide-react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
+import { canAccessBackoffice } from '@/features/auth/permissions';
 
 /**
  * Switch Portail / Back-Office (cahier des charges section 17).
@@ -17,12 +18,15 @@ import { useAuth } from '@/features/auth/hooks/useAuth';
  */
 export function PortalBackofficeSwitch({ variant = 'compact' }: { variant?: 'compact' | 'full' }) {
   const { t } = useTranslation();
-  const { user, hasRole } = useAuth();
+  const { user, canAccessBackoffice: fromContext } = useAuth();
   const location = useLocation();
 
-  // Back-office = tout role de rang >= editor (visitor/CUSTOMER => jamais).
-  const canAccessBackOffice = !!user && hasRole('editor');
-  if (!canAccessBackOffice) return null;
+  // Back-office = role back-office (editor/product_manager/admin/super_admin).
+  // Priorite au flag `can_access_backoffice` du backend (/auth/me) ; le calcul
+  // local via les roles n'est qu'un fallback (mode demo). Un CUSTOMER ne voit
+  // jamais ce switch, et le backend protege de toute facon chaque endpoint.
+  const isAllowed = typeof fromContext === 'boolean' ? fromContext : canAccessBackoffice(user);
+  if (!isAllowed) return null;
 
   const inBackOffice = location.pathname.startsWith('/admin');
   const target = inBackOffice ? '/' : '/admin';

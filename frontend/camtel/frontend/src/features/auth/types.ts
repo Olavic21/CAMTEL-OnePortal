@@ -11,9 +11,10 @@ export interface LoginResponse {
   access: string;
 }
 
-// Inscription publique : tout visiteur peut creer un compte, qui recoit
-// automatiquement le role "visitor" cote backend (jamais choisi par le
-// formulaire lui-meme, pour eviter toute auto-promotion).
+// Inscription publique : tout visiteur du site peut creer un compte, qui recoit
+// automatiquement le role "customer" (CUSTOMER) cote backend — jamais choisi
+// par le formulaire lui-meme, pour eviter toute auto-promotion. Plus aucun
+// role "visitor" n'existe (cahier des charges #18).
 export interface RegisterPayload {
   username: string;
   email: string;

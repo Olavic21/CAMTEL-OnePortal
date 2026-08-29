@@ -2,9 +2,10 @@ import type { UserRole } from '@/shared/types';
 
 // Matrice des permissions alignee sur la section 9.2 de la documentation
 // (matrice des permissions), etendue avec la logique de gestion des comptes
-// definie par le porteur du projet : inscription libre en Visiteur, puis
-// promotion en cascade (Admin decide qui devient Editeur/Gestionnaire,
-// Super Admin seul decide qui devient Admin).
+// definie par le porteur du projet : inscription libre en Client (CUSTOMER,
+// ex-"Visiteur" — cahier des charges #18), puis promotion en cascade
+// (Admin decide qui devient Editeur/Gestionnaire, Super Admin seul decide
+// qui devient Admin).
 export type Permission =
   | 'edit_product_draft'
   | 'publish_product'
@@ -51,20 +52,45 @@ export const PERMISSIONS: Record<Permission, UserRole[]> = {
   manage_subscriptions: ['super_admin', 'admin'],
 };
 
+// Roles "principaux" (sans le legacy viewer) — utilises pour l'attribution de
+// roles et les formulaires back-office (le legacy viewer n'est jamais assignable).
+export type MainUserRole = Exclude<UserRole, 'viewer'>;
+
 // Roles qu'un role donne est autorise a attribuer a un autre compte.
 // - Super Admin : peut attribuer n'importe quel role, y compris Admin.
-// - Admin : peut promouvoir un Visiteur en Editeur/Gestionnaire, ou revenir
-//   a Visiteur, mais ne peut jamais attribuer Admin ou Super Admin.
-export function getAssignableRoles(actingRole: UserRole): UserRole[] {
+// - Admin : peut promouvoir un Client en Editeur/Gestionnaire, ou revenir
+//   au role Client, mais ne peut jamais attribuer Admin ou Super Admin.
+export function getAssignableRoles(actingRole: UserRole): MainUserRole[] {
   if (actingRole === 'super_admin') {
-    return ['super_admin', 'admin', 'product_manager', 'editor', 'visitor'];
+    return ['super_admin', 'admin', 'product_manager', 'editor', 'customer'];
   }
   if (actingRole === 'admin') {
-    return ['product_manager', 'editor', 'visitor'];
+    return ['product_manager', 'editor', 'customer'];
   }
   return [];
 }
 
+// Roles autorises a entrer dans le back-office (cahier des charges #20).
+// Le frontend peut masquer les boutons, mais le backend protege TOUJOURS
+// les endpoints : un CUSTOMER ne peut jamais acceder au back-office.
+export const BACKOFFICE_ROLES: UserRole[] = ['super_admin', 'admin', 'product_manager', 'editor'];
+
+/**
+ * Decide si un compte peut accder au back-office (switch #21).
+ * Utilise en priorite `can_access_backoffice` renvoye par le backend
+ * (/auth/me) ; le calcul local n'est qu'un fallback (mode demo/mocks).
+ */
+export function canAccessBackoffice(
+  user: { role: UserRole; can_access_backoffice?: boolean } | null | undefined,
+): boolean {
+  if (!user) return false;
+  if (typeof user.can_access_backoffice === 'boolean') return user.can_access_backoffice;
+  return BACKOFFICE_ROLES.includes(user.role);
+}
+
+// Un compte deja Admin ou Super Admin ne peut etre gere (role modifie,
+// desactive, supprime) que par un Super Admin — un Admin ne peut pas agir
+// sur un autre Admin.
 // Un compte deja Admin ou Super Admin ne peut etre gere (role modifie,
 // desactive, supprime) que par un Super Admin — un Admin ne peut pas agir
 // sur un autre Admin.
