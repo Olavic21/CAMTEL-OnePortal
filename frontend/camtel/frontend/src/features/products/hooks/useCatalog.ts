@@ -1,49 +1,26 @@
 import { useQuery } from '@tanstack/react-query';
-import { listMockProducts } from '@/mocks/products';
-import type { ProductV2 } from '@/shared/types';
+import { listCatalogProducts, type PaginatedProductsV2 } from '../api/productsApi';
 
 export interface CatalogQuery {
   service?: string;
   segment?: string;
   search?: string;
   page?: number;
+  page_size?: number;
   ordering?: string;
-  availability?: string;
 }
 
-export interface PaginatedProducts {
-  count: number;
-  next: string | null;
-  previous: string | null;
-  results: ProductV2[];
-}
-
-interface PaginatedResult<T> {
-  count: number;
-  next: string | null;
-  previous: string | null;
-  results: T[];
-}
+/** Reponse catalogue paginee (contrat DRF + mapping ProductV2). */
+export type PaginatedProducts = PaginatedProductsV2;
 
 /**
- * Catalogue public (service/segment/prix/disponibilite filtres independants).
- *
- * Source TEMPORAIRE : `listMockProducts` (mocks conformes au contrat API,
- * voir src/mocks/). Des que `GET /api/v1/products/` supporte les filtres
- * `service` et `segment`, remplacer le queryFn par `productsApi.list` :
- *
- *   const list = (q: CatalogQuery) =>
- *     httpClient.get<PaginatedResult<ProductV2>>('/products/', { params: q })
- *       .then((r) => r.data);
+ * Catalogue public — SOURCE DE VERITE : le backend
+ * (GET /api/v1/products/ avec filtres service/segment/search).
+ * Aucune donnee commerciale cote frontend (BUG-01 corrige, section 48).
  */
-async function catalogFetcher(query: CatalogQuery): Promise<PaginatedResult<ProductV2>> {
-  const result = listMockProducts(query);
-  return result as PaginatedResult<ProductV2>;
-}
-
 export function useCatalog(query: CatalogQuery = {}) {
   return useQuery({
     queryKey: ['catalog', query],
-    queryFn: () => catalogFetcher(query),
+    queryFn: () => listCatalogProducts(query),
   });
 }

@@ -6,13 +6,15 @@ import type { PriceInfo } from '@/shared/types';
  * Un vrai prix a 0 (type != ON_QUOTE et amount === 0) reste affiche "0 FCFA".
  */
 
-export type PricePeriod = 'monthly' | 'yearly' | 'one_time' | 'usage' | 'quote';
+export type PricePeriod = 'monthly' | 'quarterly' | 'yearly' | 'one_time' | 'usage' | 'quote';
 
 /** Normalise un PriceInfo vers une periode affichable. */
 export function pricePeriod(type: PriceInfo['type']): PricePeriod {
   switch (type) {
     case 'MONTHLY':
       return 'monthly';
+    case 'QUARTERLY':
+      return 'quarterly';
     case 'YEARLY':
       return 'yearly';
     case 'SETUP':
@@ -50,6 +52,8 @@ export function formatPriceInfo(price?: PriceInfo | null): string | null {
   switch (pricePeriod(price.type)) {
     case 'monthly':
       return `${amount}/mois`;
+    case 'quarterly':
+      return `${amount}/trimestre`;
     case 'yearly':
       return `${amount}/an`;
     case 'one_time':
@@ -66,6 +70,8 @@ export function pricePeriodLabel(type: PriceInfo['type']): string {
   switch (pricePeriod(type)) {
     case 'monthly':
       return '/mois';
+    case 'quarterly':
+      return '/trimestre';
     case 'yearly':
       return '/an';
     case 'one_time':

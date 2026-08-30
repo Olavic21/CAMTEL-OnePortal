@@ -18,9 +18,8 @@ const STATUS_TONES: Record<string, 'success' | 'warning' | 'destructive'> = {
 export default function ClientPaymentsPage() {
   const { t } = useTranslation();
 
-  // Historique des paiements. Tant que GET /payments/ n'existe pas cote
-  // backend, l'api retombe sur les mocks marques DEMO (jamais presentes
-  // comme de vraies donnees commerciales).
+  // Historique REEL : GET /api/v1/payments/ (isolation owner cote backend).
+  // En cas d'erreur API : etat d'erreur affiche — jamais de donnees fictives.
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['payments', 'mine'],
     queryFn: () => paymentsApi.history(),
@@ -66,7 +65,7 @@ export default function ClientPaymentsPage() {
               <p className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
                 {t('account.paymentsBillingStatus')}
               </p>
-              <Badge tone={summary.billing_status === 'UP_TO_DATE' ? 'success' : summary.billing_status === 'OVERDUE' ? 'destructive' : 'warning'} className="mt-1">
+              <Badge tone={summary.billing_status === 'UP_TO_DATE' ? 'success' : 'warning'} className="mt-1">
                 {t(`account.billingStatus.${summary.billing_status}`)}
               </Badge>
             </div>
@@ -113,6 +112,9 @@ export default function ClientPaymentsPage() {
                     </td>
                     <td className="p-3">
                       <Badge tone={STATUS_TONES[p.status] ?? 'neutral'}>{t(`account.paymentStatus.${p.status}`)}</Badge>
+                      {p.simulation && (
+                        <Badge tone="neutral" className="ml-1">{t('account.paymentsSimulation')}</Badge>
+                      )}
                     </td>
                     <td className="p-3 text-sm text-neutral-500 dark:text-neutral-400">
                       {p.paid_at ? formatDate(p.paid_at) : '—'}

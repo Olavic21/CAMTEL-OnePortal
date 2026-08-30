@@ -5,15 +5,17 @@ import { Card } from '@/shared/components/Card';
 import { EmptyState } from '@/shared/components/EmptyState';
 import { ErrorState } from '@/shared/components/ErrorState';
 import { ClientAccountNav } from '../components/ClientAccountNav';
-import { listMockPayments } from '@/mocks/payments';
-import type { Payment } from '@/mocks/payments';
+import { paymentsApi } from '@/features/payments/api/paymentsApi';
+import type { Payment } from '@/features/payments/api/paymentsApi';
 
 export default function ClientPaymentsPage() {
   const { t } = useTranslation();
 
+  // Historique REEL : GET /api/v1/payments/ (isolation owner cote backend).
+  // En cas d'erreur API : etat d'erreur affiche — jamais de donnees fictives.
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['payments', 'client'],
-    queryFn: () => Promise.resolve(listMockPayments()),
+    queryFn: () => paymentsApi.history(),
   });
 
   if (isLoading) {

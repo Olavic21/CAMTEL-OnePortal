@@ -959,3 +959,82 @@ class CatalogDiffCommandTest(TestCase):
                 stdout=out,
             )
 
+
+class PaymentHistoryViewTest(APITestCase):
+    """GET /api/v1/payments/ — historique strictement owner-scoped."""
+
+    def setUp(self):
+        self.user_a = User.objects.create_user(username='pay-a', password='pass', email='a@example.com')
+        self.user_b = User.objects.create_user(username='pay-b', password='pass', email='b@example.com')
+        self.category = Category.objects.create(name='PayHist', slug='pay-hist')
+        self.product = Product.objects.create(
+            name='Offre Paiement Histo',
+            slug='offre-paiement-histo',
+            description='Offre pour tests historique paiements',
+            price='25000.00',
+            currency='XAF',
+            category=self.category,
+            offer_type=Product.OfferType.INTERNET,
+            segment=Product.Segment.PARTICULIER,
+            availability=Product.Availability.ALL,
+            is_published=True,
+            is_active=True,
+        )
+        self.payment_completed = Payment.objects.create(
+            reference='PAY-A-1', provider='mock', product=self.product,
+            user=self.user_a, amount='25000.00', currency='XAF',
+            status=Payment.Status.COMPLETED,
+        )
+        self.payment_pending = Payment.objects.create(
+            reference='PAY-A-2', provider='mock', product=self.product,
+            user=self.user_a, amount='18000.00', currency='XAF',
+            status=Payment.Status.PENDING,
+        )
+        self.payment_b = Payment.objects.create(
+            reference='PAY-B-1', provider='mock', product=self.product,
+            user=self.user_b, amount='99999.00', currency='XAF',
+            status=Payment.Status.COMPLETED,
+        )
+
+    def test_requires_authentication(self):
+        response = self.client.get('/api/v1/payments/')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_returns_only_own_payments(self):
+        """Customer A ne doit jamais voir les paiements de Customer B."""
+        self.client.force_authenticate(user=self.user_a)
+        response = self.client.get('/api/v1/payments/')
+        self.assertEqual(response.status_code, 200)
+        references = [r['reference'] for r in response.data['results']]
+        self.assertIn('PAY-A-1', references)
+        self.assertIn('PAY-A-2', references)
+        self.assertNotIn('PAY-B-1', references)
+        self.assertEqual(response.data['count'], 2)
+
+    def test_status_mapping_and_paid_at(self):
+        self.client.force_authenticate(user=self.user_a)
+        response = self.client.get('/api/v1/payments/')
+        by_ref = {r['reference']: r for r in response.data['results']}
+        self.assertEqual(by_ref['PAY-A-1']['status'], 'PAID')
+        self.assertIsNotNone(by_ref['PAY-A-1']['paid_at'])
+        self.assertEqual(by_ref['PAY-A-2']['status'], 'PENDING')
+        self.assertIsNone(by_ref['PAY-A-2']['paid_at'])
+        # Le montant persiste est celui calcule cote serveur.
+        self.assertEqual(str(by_ref['PAY-A-1']['amount']), '25000.00')
+
+    def test_summary_aggregates(self):
+        self.client.force_authenticate(user=self.user_a)
+        response = self.client.get('/api/v1/payments/')
+        summary = response.data['summary']
+        self.assertEqual(summary['completed_count'], 1)
+        self.assertEqual(summary['pending_count'], 1)
+        self.assertEqual(summary['billing_status'], 'PENDING')
+        self.assertEqual(summary['total_paid'], '25000.00')
+        # Aucune facturation recurrente modelisee : jamais simulee.
+        self.assertIsNone(summary['next_due_date'])
+
+    def test_limit_param(self):
+        self.client.force_authenticate(user=self.user_a)
+        response = self.client.get('/api/v1/payments/?limit=1')
+        self.assertEqual(response.data['count'], 1)
+

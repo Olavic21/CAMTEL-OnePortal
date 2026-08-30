@@ -16,17 +16,16 @@ import { DataQualityBadge } from '@/shared/components/DataQualityBadge';
 import { useCatalog } from '@/features/products/hooks/useCatalog';
 import { SERVICES } from '@/shared/config/services';
 import { SEGMENTS } from '@/shared/config/segments';
-import { mockServices } from '@/mocks/services';
 import { documentsApi } from '@/features/documents/api/documentsApi';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import type { ProductV2, DocumentEntry } from '@/shared/types';
 
 /**
  * Recherche globale (/search) — cahier des charges section 12.
- * Resultats groupes : Services, Produits, Documentation, FAQ.
+ * Resultats groupes : Services, Produits, Documentation.
  * Filtres INDEPENDANTS service / segment (jamais melanges).
- * Produits via le catalogue (API des que dispo, mocks conformes en attendant),
- * documentation via /documents/, FAQ via les services.
+ * Produits via le catalogue backend (/api/v1/products/?search=),
+ * documentation via /documents/. Aucun catalogue parallele cote frontend.
  */
 
 function matches(haystack: string | undefined | null, needle: string) {
@@ -81,22 +80,7 @@ export default function SearchPage() {
     enabled: needle.length >= 2,
   });
 
-  // FAQ : extraite des services (mocks conformes au contrat ServiceInfo).
-  const faqHits = useMemo(() => {
-    if (needle.length < 2) return [];
-    const hits: Array<{ service: string; question: string; answer: string; route: string }> = [];
-    for (const s of mockServices) {
-      for (const faq of s.faqs ?? []) {
-        if (matches(faq.question, needle) || matches(faq.answer, needle)) {
-          hits.push({ service: s.service, question: faq.question, answer: faq.answer, route: `/services/${s.slug}` });
-        }
-      }
-    }
-    return hits.slice(0, 6);
-  }, [needle]);
-
-  const hasAnyResult =
-    services.length > 0 || products.length > 0 || (docs?.length ?? 0) > 0 || faqHits.length > 0;
+  const hasAnyResult = services.length > 0 || products.length > 0 || (docs?.length ?? 0) > 0;
   const isSearching = needle.length >= 2 || !!service || !!segment;
   const isLoadingAny = loadingProducts || (needle.length >= 2 && loadingDocs);
 
@@ -246,26 +230,6 @@ export default function SearchPage() {
             </section>
           )}
 
-          {/* FAQ */}
-          {faqHits.length > 0 && (
-            <section aria-labelledby="search-faq">
-              <h2 id="search-faq" className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-                {t('search.group.faq')}
-              </h2>
-              <ul className="space-y-2">
-                {faqHits.map((f) => (
-                  <li key={`${f.service}-${f.question}`}>
-                    <Link to={f.route}>
-                      <Card className="p-4 transition-shadow hover:shadow-md">
-                        <p className="font-medium text-neutral-900 dark:text-neutral-100">{f.question}</p>
-                        <p className="mt-1 line-clamp-2 text-sm text-neutral-500 dark:text-neutral-400">{f.answer}</p>
-                      </Card>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
         </div>
       )}
     </div>

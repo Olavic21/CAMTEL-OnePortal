@@ -25,6 +25,7 @@ export type Segment =
 export type PriceType =
   | 'FIXED'
   | 'MONTHLY'
+  | 'QUARTERLY'
   | 'YEARLY'
   | 'SETUP'
   | 'USAGE'

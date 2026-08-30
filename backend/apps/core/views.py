@@ -14,7 +14,14 @@ from apps.products.models import Product, Service
 from apps.products.serializers import ProductSerializer
 from apps.promotions.models import Promotion
 
-from .models import ActivityLog, AnalyticsEvent, Notification, SupportTicket, TicketMessage
+from .models import (
+    ActivityLog,
+    AnalyticsEvent,
+    Notification,
+    Payment,
+    SupportTicket,
+    TicketMessage,
+)
 from .permissions import AdminOnly, IsAdminOrEditor
 from .serializers import (
     ActivityLogSerializer,
@@ -499,6 +506,97 @@ class PaymentInitiateView(APIView):
                 "Simulation — aucune transaction réelle n'est effectuée."
             )
         return payload
+
+
+class PaymentHistoryView(APIView):
+    """Historique des paiements de l'utilisateur connecte (espace client).
+
+    Regles :
+      - isolation stricte : ne renvoie QUE les paiements de ``request.user``
+        (aucun parametre client ne peut elargir le perimetre) ;
+      - les statuts exposes sont le mappage reel du modele Payment :
+        COMPLETED -> PAID, PENDING -> PENDING, FAILED/CANCELLED -> FAILED ;
+      - ``paid_at`` correspond a la date de derniere transition d'etat du
+        paiement (updated_at) uniquement lorsqu'il est COMPLETED — aucune
+        date n'est simulee pour les autres statuts ;
+      - ``summary.next_due_date`` vaut toujours null : aucune facturation
+        recurrente n'est modelisee (camtel backend) — ne pas inventer.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+    MAX_LIMIT = 100
+
+    STATUS_MAP = {
+        Payment.Status.COMPLETED: 'PAID',
+        Payment.Status.PENDING: 'PENDING',
+        Payment.Status.FAILED: 'FAILED',
+        Payment.Status.CANCELLED: 'FAILED',
+    }
+
+    def get(self, request):
+        from django.db.models import Count, Sum
+
+        from .models import Payment
+
+        try:
+            limit = int(request.query_params.get('limit', 50))
+        except (TypeError, ValueError):
+            limit = 50
+        limit = max(1, min(limit, self.MAX_LIMIT))
+
+        payments = (
+            Payment.objects.filter(user=request.user)
+            .select_related('product')
+            .order_by('-created_at')[:limit]
+        )
+
+        results = []
+        for payment in payments:
+            status_mapped = self.STATUS_MAP.get(payment.status, 'FAILED')
+            results.append(
+                {
+                    'id': payment.pk,
+                    'reference': payment.reference,
+                    'transaction_id': payment.transaction_id,
+                    'provider': payment.provider,
+                    'product_name': payment.product.name if payment.product else None,
+                    'product_slug': payment.product.slug if payment.product else None,
+                    'amount': str(payment.amount),
+                    'currency': payment.currency,
+                    'status': status_mapped,
+                    'paid_at': (
+                        payment.updated_at.isoformat()
+                        if payment.status == Payment.Status.COMPLETED and payment.updated_at
+                        else None
+                    ),
+                    'created_at': payment.created_at.isoformat() if payment.created_at else None,
+                    'simulation': payment.provider == 'mock',
+                }
+            )
+
+        # Resume calcule en base (une seule requete agregats + une de comptage).
+        from decimal import Decimal
+
+        totals = Payment.objects.filter(user=request.user).aggregate(
+            total_paid=Sum('amount', filter=Q(status=Payment.Status.COMPLETED)),
+        )
+        counts = Payment.objects.filter(user=request.user).values('status').annotate(c=Count('id'))
+        by_status = {row['status']: row['c'] for row in counts}
+        pending_count = by_status.get(Payment.Status.PENDING, 0)
+        # Normalisation de l'echelle decimale (Sum() peut la perdre selon le backend DB).
+        total_paid = f'{Decimal(totals["total_paid"] or 0):.2f}'
+
+        summary = {
+            'total_paid': total_paid,
+            'currency': results[0]['currency'] if results else 'XAF',
+            'pending_count': pending_count,
+            'failed_count': by_status.get(Payment.Status.FAILED, 0)
+            + by_status.get(Payment.Status.CANCELLED, 0),
+            'completed_count': by_status.get(Payment.Status.COMPLETED, 0),
+            'billing_status': 'PENDING' if pending_count > 0 else 'UP_TO_DATE',
+            'next_due_date': None,
+        }
+        return Response({'count': len(results), 'results': results, 'summary': summary})
 
 
 class DocumentSearchView(APIView):

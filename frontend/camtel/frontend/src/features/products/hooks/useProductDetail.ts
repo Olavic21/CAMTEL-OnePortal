@@ -1,32 +1,32 @@
 import { useQuery } from '@tanstack/react-query';
-import { getMockProduct } from '@/mocks/products';
 import type { Product, ProductV2 } from '@/shared/types';
-import { productsApi } from '../api/productsApi';
+import { fetchCatalogProduct, productsApi } from '../api/productsApi';
 
 /**
- * Detail produit : priorite au nouveau contrat (mocks conformes) puis fallback
- * sur l'API Django existante. `isLoading` n'est vrai que si les deux sources
- * sont en attente — evite l'ecran vide pendant le chargement.
+ * Detail produit — SOURCE DE VERITE : le backend
+ * (GET /api/v1/products/{slug}/ puis mapping ProductV2).
+ * Fallback : contrat legacy brut si le mapping V2 echoue.
  */
 export function useProductDetail(slug: string | undefined) {
-  const mock = useQuery({
+  const v2 = useQuery({
     queryKey: ['products', 'detail-v2', slug],
-    queryFn: () => getMockProduct(slug),
-    enabled: !!slug,
-  });
-
-  const api = useQuery({
-    queryKey: ['products', 'detail-legacy', slug],
-    queryFn: () => productsApi.detail(slug as string),
+    queryFn: () => fetchCatalogProduct(slug as string),
     enabled: !!slug,
     retry: false,
   });
 
-  const product = (mock.data ?? api.data) as Product | ProductV2 | undefined;
+  const legacy = useQuery({
+    queryKey: ['products', 'detail-legacy', slug],
+    queryFn: () => productsApi.detail(slug as string),
+    enabled: !!slug && v2.isError,
+    retry: false,
+  });
+
+  const product = (v2.data ?? legacy.data) as ProductV2 | Product | undefined;
 
   return {
     product,
-    isLoading: mock.isLoading && api.isLoading,
-    isError: (!mock.data && api.isError) || (!api.data && mock.isError),
+    isLoading: v2.isLoading || (v2.isError && legacy.isLoading),
+    isError: v2.isError && legacy.isError,
   };
 }

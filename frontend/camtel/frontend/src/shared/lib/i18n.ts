@@ -425,6 +425,7 @@ const resources = {
         paymentsPaidAt: 'Payé le',
         paymentsEmpty: 'Aucun paiement',
         paymentsEmptyHint: 'Vos paiements apparaîtront ici après votre première souscription.',
+        paymentsSimulation: 'Simulation',
         billingStatus: {
           UP_TO_DATE: 'À jour',
           PENDING: 'En attente',
@@ -1789,6 +1790,7 @@ const enAdditionalTranslations = {
     paymentsReference: 'Reference',
     paymentsAmount: 'Amount',
     paymentsPaidAt: 'Paid on',
+    paymentsSimulation: 'Simulation',
   },
   roles: { customer: 'Customer' },
   documents: { open: 'Open' },
