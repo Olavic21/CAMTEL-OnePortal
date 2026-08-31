@@ -38,7 +38,11 @@ export interface ProductPayload {
 // Endpoints alignes sur la section 8.3 de la documentation API.
 export const productsApi = {
   list: (params: ProductListParams = {}) =>
-    httpClient.get<Paginated<Product>>('/products/', { params }).then((r) => r.data),
+    httpClient
+      .get<Paginated<Product>>('/products/', {
+        params: { ...params, service: toServiceSlugParam(params.service) },
+      })
+      .then((r) => r.data),
   detail: (slug: string) => httpClient.get<Product>(`/products/${slug}/`).then((r) => r.data),
   create: (payload: ProductPayload, coverImage?: File | null) => {
     // En presence d'une image de couverture, on envoie en multipart/form-data.
@@ -347,13 +351,35 @@ export interface PaginatedProductsV2 {
   results: ProductV2[];
 }
 
+/**
+ * Normalise le parametre `service` avant envoi au backend.
+ * Le ProductViewSet filtre par `service__slug` (fixes, mobiles, transport,
+ * data-center) alors que l'UI travaille avec l'enum Service (FIXES, ...).
+ * Si un enum est fourni, on le convertit en slug ; sinon on le transmet tel
+ * quel (slug possible — ex: useServiceProducts). Sans cette normalisation,
+ * tout filtre `service=FIXES` renvoyait une liste vide (bug catalogue vide).
+ */
+const SERVICE_ENUM_TO_SLUG: Record<string, string> = {
+  FIXES: 'fixes',
+  FIXED: 'fixes',
+  MOBILES: 'mobiles',
+  MOBILE: 'mobiles',
+  TRANSPORT: 'transport',
+  DATA_CENTER: 'data-center',
+};
+
+function toServiceSlugParam(service: string | undefined): string | undefined {
+  if (!service) return undefined;
+  return SERVICE_ENUM_TO_SLUG[service] ?? service;
+}
+
 /** Requete catalogue paginee : GET /api/v1/products/?service=&segment=&search= */
 export async function listCatalogProducts(
   query: CatalogApiQuery = {},
 ): Promise<PaginatedProductsV2> {
   const res = await httpClient.get<Paginated<ApiProduct>>('/products/', {
     params: {
-      service: query.service || undefined,
+      service: toServiceSlugParam(query.service),
       segment: query.segment || undefined,
       search: query.search || undefined,
       page: query.page,

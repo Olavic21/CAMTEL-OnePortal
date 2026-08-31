@@ -1,0 +1,1 @@
+Set-Location 'c:\Users\HP PROBOOK 450 G2\CAMTEL-OnePortal\frontend\camtel\frontend'; npx tsc --noEmit 2>&1 | Out-File -Encoding utf8 'tsc_result.log'; Add-Content -Path 'tsc_result.log' -Value ('EXIT_CODE=' + $LASTEXITCODE)

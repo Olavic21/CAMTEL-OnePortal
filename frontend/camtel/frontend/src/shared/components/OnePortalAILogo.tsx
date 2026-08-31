@@ -1,7 +1,7 @@
 import { clsx } from 'clsx';
 
-const ICON_SRC = '/camtel-assistant-icon.svg';
-const FULL_SRC = '/camtel-assistant-logo-full.svg';
+const ICON_SRC = '/oneportal-ai-icon.svg';
+const FULL_SRC = '/oneportal-ai-logo-full.svg';
 
 type CAMTELAssistantLogoVariant = 'icon' | 'header' | 'full';
 

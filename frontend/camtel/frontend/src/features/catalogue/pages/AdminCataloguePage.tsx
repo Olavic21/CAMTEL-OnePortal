@@ -15,13 +15,8 @@ import { ServiceBadge } from '@/shared/components/ServiceBadge';
 import { SegmentBadge } from '@/shared/components/SegmentBadge';
 import { DataQualityBadge } from '@/shared/components/DataQualityBadge';
 import { formatPrice } from '@/shared/utils/format';
-import type { Product, ProductStatus, Service, Segment } from '@/shared/types';
-
-const statusTone: Record<ProductStatus, 'draft' | 'success' | 'neutral'> = {
-  draft: 'draft',
-  published: 'success',
-  archived: 'neutral',
-};
+import { productStatusMeta, PRODUCT_STATUS_FILTERS } from '@/features/products/lib/status';
+import type { Product, Service, Segment } from '@/shared/types';
 
 const ALL_SERVICES: Service[] = ['FIXES', 'MOBILES', 'TRANSPORT', 'DATA_CENTER'];
 const ALL_SEGMENTS: Segment[] = ['PARTICULIER', 'PROFESSIONNEL', 'ENTREPRISE', 'ADMINISTRATION'];
@@ -35,18 +30,21 @@ export default function AdminCataloguePage() {
   const { data, isLoading } = useProducts({ status: status || undefined, service: service || undefined, segment: segment || undefined, page });
   const { can } = useAuth();
 
-  const statusLabel: Record<ProductStatus, string> = {
-    draft: t('admin.products.draft'),
-    published: t('admin.products.published'),
-    archived: t('admin.products.archived'),
-  };
-
   const columns: Column<Product>[] = [
     { key: 'name', header: t('admin.products.product'), render: (p) => (<div><span className="font-medium">{p.name}</span>{p.source?.quality && <div className="mt-1"><DataQualityBadge quality={p.source.quality} /></div>}</div>) },
     { key: 'service', header: t('admin.catalogue.service'), render: (p) => <ServiceBadge service={p.service} /> },
     { key: 'segment', header: t('admin.catalogue.segment'), render: (p) => <SegmentBadge segment={p.segment} /> },
     { key: 'price', header: t('admin.products.price'), render: (p) => formatPrice(p.price, p.price_unit) },
-    { key: 'status', header: t('common.status'), render: (p) => <Badge tone={statusTone[p.status]}>{statusLabel[p.status]}</Badge> },
+    {
+      key: 'status',
+      header: t('common.status'),
+      render: (p) => {
+        const pub = (p as Product & { is_published?: boolean }).is_published;
+        const status = p.status || (pub ? 'VALID' : pub === false ? 'DRAFT' : null);
+        const meta = productStatusMeta(status);
+        return meta ? <Badge tone={meta.tone}>{meta.label}</Badge> : null;
+      },
+    },
   ];
 
   const totalPages = data ? Math.ceil(data.count / 12) : 1;
@@ -63,9 +61,7 @@ export default function AdminCataloguePage() {
       <div className="mb-4 flex flex-wrap gap-3">
         <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label={t('common.status')}>
           <option value="">{t('admin.products.allStatuses')}</option>
-          <option value="draft">{t('admin.products.draft')}</option>
-          <option value="published">{t('admin.products.published')}</option>
-          <option value="archived">{t('admin.products.archived')}</option>
+          {PRODUCT_STATUS_FILTERS.map((s) => (<option key={s} value={s}>{s}</option>))}
         </Select>
         <Select value={service} onChange={(e) => setService(e.target.value)} aria-label={t('admin.catalogue.serviceFilter')}>
           <option value="">{t('admin.catalogue.allServices')}</option>

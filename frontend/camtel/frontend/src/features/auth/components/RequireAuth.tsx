@@ -8,9 +8,20 @@ import { useTranslation } from 'react-i18next';
 // authentifie, ou affiche un message si le role/la permission est insuffisant.
 // `roles` sert aux gardes generales (ex: reserve au Super Admin), `permission`
 // sert aux gardes metier fines alignees sur la matrice section 9.2.
-export function RequireAuth({ roles, permission }: { roles?: UserRole[]; permission?: Permission }) {
+// `backoffice` bloque /admin pour tout utilisateur sans acces back-office
+// (CUSTOMER/anon), en s'appuyant sur le flag reel renvoye par le backend
+// (`can_access_backoffice` de /auth/me) — jamais sur un simple calcul local.
+export function RequireAuth({
+  roles,
+  permission,
+  backoffice,
+}: {
+  roles?: UserRole[];
+  permission?: Permission;
+  backoffice?: boolean;
+}) {
   const { t } = useTranslation();
-  const { isAuthenticated, isLoading, hasRole, can } = useAuth();
+  const { isAuthenticated, isLoading, hasRole, can, canAccessBackoffice } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -21,7 +32,10 @@ export function RequireAuth({ roles, permission }: { roles?: UserRole[]; permiss
     return <Navigate to="/admin/login" state={{ from: location }} replace />;
   }
 
-  const isForbidden = (roles && !hasRole(...roles)) || (permission && !can(permission));
+  const forbiddenByRoles = !!roles && !hasRole(...roles);
+  const forbiddenByPermission = !!permission && !can(permission);
+  const forbiddenByBackoffice = !!backoffice && !canAccessBackoffice;
+  const isForbidden = forbiddenByRoles || forbiddenByPermission || forbiddenByBackoffice;
 
   if (isForbidden) {
     return (

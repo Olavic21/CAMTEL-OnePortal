@@ -160,6 +160,19 @@ class DashboardSummaryView(APIView):
     permission_classes = [IsAdminOrEditor]
 
     def get(self, request):
+        from django.contrib.auth import get_user_model
+        from django.db.models import Count
+        from apps.subscriptions.models import SubscriptionRequest
+
+        UserModel = get_user_model()
+        role_counts = dict(
+            UserModel.objects.all()
+            .values_list('role')
+            .annotate(c=Count('id'))
+            .values_list('role', 'c')
+        )
+        active_subs = SubscriptionRequest.Status.ACTIVE
+        subscriptions_total = SubscriptionRequest.objects.count()
         return Response({
             'products_published': Product.objects.filter(is_published=True).count(),
             'products_draft': Product.objects.filter(is_published=False).count(),
@@ -170,6 +183,40 @@ class DashboardSummaryView(APIView):
             ).data,
             'promotions_active': Promotion.objects.filter(is_active=True).count(),
             'contact_messages_new': ContactMessage.objects.filter(is_read=False).count(),
+            # --- Compteurs Superadmin (donnees reelles) ---
+            'users': {
+                'total': UserModel.objects.all().count(),
+                'active': UserModel.objects.filter(is_active=True).count(),
+                'customers': role_counts.get('CUSTOMER', 0),
+                'backoffice': sum(role_counts.get(r, 0) for r in ('SUPER_ADMIN', 'ADMIN', 'PRODUCT_MANAGER', 'EDITOR')),
+                'super_admins': role_counts.get('SUPER_ADMIN', 0),
+                'admins': role_counts.get('ADMIN', 0),
+                'by_role': role_counts,
+            },
+            'roles_count': len([c for c in role_counts.values() if c]),
+            'subscriptions': {
+                'total': subscriptions_total,
+                'pending': SubscriptionRequest.objects.filter(
+                    status__in=('PENDING', 'UNDER_REVIEW'),
+                ).count(),
+                'activated': SubscriptionRequest.objects.filter(
+                    status__in=('ACTIVATED', active_subs),
+                ).count(),
+            },
+            'tickets': {
+                'total': SupportTicket.objects.all().count(),
+                'open': SupportTicket.objects.filter(
+                    status__in=('OPEN', 'IN_PROGRESS', 'WAITING_CUSTOMER'),
+                ).count(),
+            },
+            'payments': {
+                'total': Payment.objects.all().count(),
+                'pending': Payment.objects.filter(status='PENDING').count(),
+                'completed': Payment.objects.filter(status='COMPLETED').count(),
+            },
+            'notifications_unread_global': Notification.objects.filter(
+                user__isnull=True, is_read=False,
+            ).count(),
         })
 
 
@@ -620,6 +667,57 @@ class DocumentSearchView(APIView):
 
 class RecommendationView(APIView):
     permission_classes = [permissions.AllowAny]
+
+    @staticmethod
+    def _parse_number(raw):
+        if raw in (None, ''):
+            return None
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            return None
+
+    def post(self, request):
+        """« Trouver ma solution » (section 14) : moteur de recommandation
+        SERVEUR. Le client n'envoie que des criteres ; le backend filtre et
+        trie le catalogue reellement publie, puis serialise les offres avec
+        le contrat ProductSerializer (regle #52 : aucune donnee inventee,
+        regle #59 : pas de scoring fantome cote client uniquement)."""
+        from apps.core.v2_services import recommend_products_by_criteria
+        from apps.products.serializers import ProductSerializer
+
+        criteria = request.data if isinstance(request.data, dict) else {}
+        parsed = {}
+        for key in ('budget', 'min_speed', 'min_storage', 'users'):
+            value = criteria.get(key)
+            number = self._parse_number(value)
+            if value not in (None, '') and number is None:
+                return Response(
+                    {'detail': f"Critère invalide : '{key}' doit être un nombre."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            parsed[key] = number
+        if parsed.get('users') is not None and parsed['users'] < 1:
+            return Response(
+                {'detail': "Critère invalide : 'users' doit être >= 1."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        service = str(criteria.get('service') or '').strip().lower().replace('_', '-')
+        segment = str(criteria.get('segment') or '').strip().upper()
+        try:
+            limit = int(criteria.get('limit', 6))
+        except (TypeError, ValueError):
+            limit = 6
+
+        products = recommend_products_by_criteria(
+            service=service,
+            segment=segment,
+            limit=limit,
+            **parsed,
+        )
+        results = ProductSerializer(products, many=True, context={'request': request}).data
+        return Response({'count': len(results), 'engine': 'criteria', 'results': results})
 
     def get(self, request):
         from apps.core.v2_services import recommend_products

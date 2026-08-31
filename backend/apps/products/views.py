@@ -352,3 +352,13 @@ class ProductImageDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return ProductImage.objects.filter(product_id=self.kwargs['product_id'])
+
+    def perform_update(self, serializer):
+        # Unicite de l'image principale : quand une image devient is_primary,
+        # les autres images du meme produit perdent leur statut (sinon la
+        # galerie et les cartes produits auraient plusieurs "principales").
+        instance = serializer.save()
+        if instance.is_primary:
+            ProductImage.objects.filter(product=instance.product).exclude(
+                pk=instance.pk
+            ).update(is_primary=False)

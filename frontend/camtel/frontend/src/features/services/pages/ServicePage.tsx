@@ -10,15 +10,19 @@ import { EmptyState } from '@/shared/components/EmptyState';
 import { Button } from '@/shared/components/Button';
 
 /**
- * Template commun des 4 pages services (/services/:slug).
+ * Template commun des 4 pages services (/services/:serviceSlug).
  * Structure : Hero, presentation, sous-services, offres, services
  * complementaires, FAQ, CTA « Trouver ma solution ».
- * Les donnees proviennent de l'API (/services/{slug}/) avec fallback mock.
+ * Les donnees proviennent de l'API (/services/{slug}/) avec fallback
+ * editorial (jamais de donnees commerciales fictives, regle #52).
  */
 export default function ServicePage() {
   const { t } = useTranslation();
-  const { slug } = useParams<{ slug: string }>();
-  const meta = getServiceBySlug(slug ?? '');
+  // Le router declare la route /services/:serviceSlug — lire ce nom de param
+  // (le param `slug` n'existe pas ici, d'ou le bug « Service introuvable »).
+  const { serviceSlug } = useParams<{ serviceSlug: string }>();
+  const slug = serviceSlug ?? '';
+  const meta = getServiceBySlug(slug);
   const { data: service, isLoading } = useService(slug);
   const { data: products = [], isLoading: loadingProducts } = useServiceProducts(
     service?.service ?? meta?.service ?? null,

@@ -16,6 +16,7 @@ import { ServiceBadge } from '@/shared/components/ServiceBadge';
 import { SegmentBadge } from '@/shared/components/SegmentBadge';
 import { DataQualityBadge } from '@/shared/components/DataQualityBadge';
 import { ProductSpecifications } from '@/shared/components/ProductSpecifications';
+import { ProductImage } from '@/shared/components/ProductImage';
 import { schemaForOffer } from '@/shared/config/specSchemas';
 import { getServiceMeta } from '@/shared/config/services';
 import { formatDate } from '@/shared/utils/format';
@@ -161,19 +162,29 @@ export default function ProductDetailPage() {
       />
 
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
-        {/* Media : image legacy ou filigrane */}
+        {/* Media : image principale ou placeholder CAMTEL (jamais d'image cassee) */}
         <div className="order-2 lg:order-1">
-          {product.images && product.images.length > 0 ? (
-            <div className="rounded-xl border border-neutral-200 bg-neutral-100 p-2 dark:border-neutral-800 dark:bg-neutral-900">
-              <img
-                src={product.images[0].image}
-                alt={product.images[0].alt_text ?? product.name}
-                className="h-auto w-full rounded-lg object-cover"
-              />
-            </div>
-          ) : (
-            <div className="flex aspect-[4/3] w-full items-center justify-center rounded-xl border border-neutral-200 bg-neutral-100 text-2xl font-bold tracking-widest text-primary/60 dark:border-neutral-800 dark:bg-neutral-900">
-              CAMTEL
+          <div className="aspect-[4/3] w-full overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900">
+            <ProductImage
+              src={product.images?.[0]?.image}
+              alt={product.images?.[0]?.alt_text ?? product.name}
+              service={product.service}
+            />
+          </div>
+          {product.images && product.images.length > 1 && (
+            <div className="mt-3 grid grid-cols-4 gap-2">
+              {product.images.slice(0, 4).map((img, i) => (
+                <div
+                  key={img.id}
+                  className="aspect-square overflow-hidden rounded-lg border border-neutral-200 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900"
+                >
+                  <ProductImage
+                    src={img.image}
+                    alt={img.alt_text ?? `${product.name} — ${i + 1}`}
+                    service={product.service}
+                  />
+                </div>
+              ))}
             </div>
           )}
         </div>

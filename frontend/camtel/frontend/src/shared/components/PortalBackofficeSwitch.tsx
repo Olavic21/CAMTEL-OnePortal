@@ -16,7 +16,13 @@ import { canAccessBackoffice } from '@/features/auth/permissions';
  * - Le frontend masque, mais ne protege pas : la verification reelle des
  *   permissions reste faite par l'API (RequireAuth ne sert qu'a l'UX).
  */
-export function PortalBackofficeSwitch({ variant = 'compact' }: { variant?: 'compact' | 'full' }) {
+export function PortalBackofficeSwitch({
+  variant = 'compact',
+  className,
+}: {
+  variant?: 'compact' | 'full';
+  className?: string;
+}) {
   const { t } = useTranslation();
   const { user, canAccessBackoffice: fromContext } = useAuth();
   const location = useLocation();
@@ -35,7 +41,10 @@ export function PortalBackofficeSwitch({ variant = 'compact' }: { variant?: 'com
     return (
       <Link
         to={target}
-        className="flex items-center gap-1.5 rounded-lg border border-primary/30 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary-50 dark:border-primary-300/40 dark:text-primary-300 dark:hover:bg-primary-900/30"
+        className={clsx(
+          'flex items-center justify-center gap-1.5 rounded-lg border border-primary/30 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary-50 dark:border-primary-300/40 dark:text-primary-300 dark:hover:bg-primary-900/30',
+          className,
+        )}
         aria-label={inBackOffice ? t('switch.toPortal') : t('switch.toBackOffice')}
       >
         {inBackOffice ? <Globe className="h-4 w-4" /> : <Building2 className="h-4 w-4" />}

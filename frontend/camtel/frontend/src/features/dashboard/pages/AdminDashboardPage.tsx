@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Package, FileText, Tag, MessageSquare, TrendingUp, Search } from 'lucide-react';
+import { Package, FileText, Tag, MessageSquare, TrendingUp, Search, Users, ClipboardList, MessageCircle, CreditCard, Bell, UserCog } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { useDashboardSummary, useAnalyticsSummary } from '../hooks/useDashboard';
 import { SummaryCard } from '../components/SummaryCard';
@@ -7,14 +7,21 @@ import { DataQualityWidget } from '../components/DataQualityWidget';
 import { Card } from '@/shared/components/Card';
 import { Skeleton } from '@/shared/components/Skeleton';
 import { formatDate } from '@/shared/utils/format';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 
 export default function AdminDashboardPage() {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const { data: summary, isLoading } = useDashboardSummary();
   // Section 20 mission (Analytics) : vues des offres, top offres, taux de
   // conversion. Anciennement un graphique avec des donnees factices en dur
   // ("viewsSample") alors que ce endpoint existait et fonctionnait deja.
   const { data: analytics, isLoading: isAnalyticsLoading } = useAnalyticsSummary(30);
+
+  // Dashboard adapte au role : un Super Admin / Admin voit la vue globale
+  // (comptes, souscriptions, tickets, paiements) ; les roles redactionnels
+  // (product_manager/editor) voient uniquement l'etat du catalogue.
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
   const topOffersData = (analytics?.top_offers ?? []).map((o) => ({
     name: o.product__name,
@@ -37,6 +44,18 @@ export default function AdminDashboardPage() {
           <SummaryCard icon={Package} label={t('admin.dashboard.draftProducts')} value={summary?.products_draft ?? 0} tone="accent" />
           <SummaryCard icon={Tag} label={t('admin.dashboard.activePromotions')} value={summary?.promotions_active ?? 0} />
           <SummaryCard icon={MessageSquare} label={t('admin.dashboard.newMessages')} value={summary?.contact_messages_new ?? 0} tone="accent" />
+        </div>
+      )}
+
+      {/* Vue globale Super Admin / Admin — compteurs reels du backend */}
+      {isAdmin && !isLoading && summary && (
+        <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <SummaryCard icon={Users} label={t('admin.dashboard.totalUsers')} value={summary.users?.total ?? 0} />
+          <SummaryCard icon={UserCog} label={t('admin.dashboard.backofficeUsers')} value={summary.users?.backoffice ?? 0} tone="accent" />
+          <SummaryCard icon={ClipboardList} label={t('admin.dashboard.subscriptionsTotal')} value={summary.subscriptions?.total ?? 0} />
+          <SummaryCard icon={MessageCircle} label={t('admin.dashboard.ticketsOpen')} value={summary.tickets?.open ?? 0} tone="accent" />
+          <SummaryCard icon={CreditCard} label={t('admin.dashboard.paymentsPending')} value={summary.payments?.pending ?? 0} />
+          <SummaryCard icon={Bell} label={t('admin.dashboard.notificationsUnreadGlobal')} value={summary.notifications_unread_global ?? 0} tone="accent" />
         </div>
       )}
 

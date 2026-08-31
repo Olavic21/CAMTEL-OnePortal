@@ -1,11 +1,13 @@
 import { httpClient } from '@/shared/lib/axios';
-import type { ProductV2 } from '@/shared/types';
+import type { ApiProduct } from '@/features/products/api/productsApi';
 
 /**
  * Recommandations « Trouver ma solution » (cahier des charges section 14).
- * Endpoint prevu : POST /api/v1/recommendations/.
- * Tant que le backend ne l'expose pas, le hook utilise un fallback local
- * (filtre du catalogue conforme au contrat) — voir useFindSolution.
+ * POST /api/v1/recommendations/ : IMPLEMENTE cote serveur (moteur de scoring
+ * deterministe — apps/core/v2_services.py::recommend_products_by_criteria).
+ * Le client n'envoie que des criteres ; le backend renvoie les offres reelles
+ * au contrat ProductSerializer (ApiProduct) — regle #52 : aucune donnee
+ * inventee. Le mapping V2 vers les composants UI se fait dans le hook.
  */
 export interface RecommendationCriteria {
   service?: string;
@@ -20,6 +22,6 @@ export interface RecommendationCriteria {
 export const recommendationsApi = {
   recommend: (criteria: RecommendationCriteria) =>
     httpClient
-      .post<{ results: ProductV2[]; engine?: string }>('/recommendations/', criteria)
+      .post<{ results: ApiProduct[]; engine?: string }>('/recommendations/', criteria)
       .then((r) => r.data),
 };

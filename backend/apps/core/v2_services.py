@@ -362,5 +362,85 @@ def recommend_products(product: Optional[Product] = None, *, segment: str = "", 
     ]
 
 
+def recommend_products_by_criteria(
+    *,
+    service: str = "",
+    segment: str = "",
+    budget: Optional[float] = None,
+    min_speed: Optional[float] = None,
+    min_storage: Optional[float] = None,
+    users: Optional[float] = None,
+    limit: int = 6,
+) -> List[Product]:
+    """Moteur « Trouver ma solution » (section 14 du cahier des charges).
+
+    Endpoint POST /api/v1/recommendations/ — le scoring n'est PAS delegue au
+    client : le frontend envoie des criteres, le backend filtre et trie le
+    catalogue reellement publie (regle #52 : aucune offre inventee).
+
+    Score deterministe et explicable :
+      * budget         : prix connu <= budget (hors QUOTE)            (+3)
+      * debit          : specs speed/bandwidth >= min_speed           (+2)
+      * stockage       : specs storage >= min_storage                 (+2)
+      * multi-users    : bandwidth >= users * 10                      (+1)
+      * disponibilite  : availability == ALL                          (+1)
+    Tri final : score, puis popularite (views_count), puis id decroissant.
+    """
+    qs = Product.objects.filter(is_active=True, is_published=True).select_related(
+        "category", "service"
+    )
+    if service:
+        qs = qs.filter(service__slug=service)
+    if segment:
+        qs = qs.filter(segment=segment)
+    candidates = list(qs[:200])
+
+    def _spec_number(candidate: Product, *keys: str) -> Optional[float]:
+        specs = candidate.specs if isinstance(candidate.specs, dict) else {}
+        for key in keys:
+            raw = specs.get(key)
+            if raw is None and key == "speed" and candidate.speed:
+                raw = candidate.speed
+            if raw is None:
+                continue
+            try:
+                return float(str(raw).split()[0].replace(",", "."))
+            except (TypeError, ValueError):
+                continue
+        return None
+
+    scored: list = []
+    for candidate in candidates:
+        score = 0
+        if (
+            budget is not None
+            and candidate.price is not None
+            and candidate.pricing_type != Product.PricingType.QUOTE
+        ):
+            try:
+                if float(candidate.price) <= budget:
+                    score += 3
+            except (TypeError, ValueError):
+                pass
+        if min_speed is not None:
+            speed = _spec_number(candidate, "speed", "bandwidth")
+            if speed is not None and speed >= min_speed:
+                score += 2
+        if min_storage is not None:
+            storage = _spec_number(candidate, "storage")
+            if storage is not None and storage >= min_storage:
+                score += 2
+        if users is not None:
+            bandwidth = _spec_number(candidate, "bandwidth", "speed")
+            if bandwidth is not None and bandwidth >= users * 10:
+                score += 1
+        if candidate.availability == Product.Availability.ALL:
+            score += 1
+        scored.append((score, candidate))
+
+    scored.sort(key=lambda item: (item[0], item[1].views_count, -item[1].id), reverse=True)
+    return [candidate for _, candidate in scored[: max(1, min(limit, 12))]]
+
+
 def generate_reference(prefix: str = "V2") -> str:
     return f"{prefix}-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"

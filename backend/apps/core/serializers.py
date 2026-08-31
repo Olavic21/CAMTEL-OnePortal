@@ -4,12 +4,26 @@ from .models import ActivityLog, AnalyticsEvent, Notification, SupportTicket, Ti
 
 
 class ActivityLogSerializer(serializers.ModelSerializer):
-    user = serializers.StringRelatedField(read_only=True)
+    """Journal d'activite — contrat aligne sur le frontend.
+
+    Contrat attendu par AdminActivityLogPage (types/index.ts) :
+      user_id : number | null
+      user    : { id, username } | null   (jamais une simple string)
+    Un rendu `#undefined` survenait quand `user` etait serialise en
+    StringRelatedField (string) sans `user_id` : le frontend affichait
+    `#${log.user_id}` avec user_id absent. Ce serializer expose donc les deux
+    champs explicitement ; `user` reste null quand l'acteur a ete supprime
+    (SET_NULL) — le frontend affiche alors un fallback propre.
+    """
+
+    user_id = serializers.IntegerField(read_only=True, allow_null=True)
+    user = serializers.SerializerMethodField()
 
     class Meta:
         model = ActivityLog
         fields = (
             'id',
+            'user_id',
             'user',
             'action',
             'target_model',
@@ -17,6 +31,11 @@ class ActivityLogSerializer(serializers.ModelSerializer):
             'details',
             'created_at',
         )
+
+    def get_user(self, obj):
+        if obj.user_id is None or obj.user is None:
+            return None
+        return {'id': obj.user.pk, 'username': obj.user.get_username()}
 
 
 class NotificationSerializer(serializers.ModelSerializer):

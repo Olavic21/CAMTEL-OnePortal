@@ -1,0 +1,155 @@
+﻿diff --git a/frontend/camtel/frontend/src/app/router.tsx b/frontend/camtel/frontend/src/app/router.tsx
+index 539e66a..5d4652b 100644
+--- a/frontend/camtel/frontend/src/app/router.tsx
++++ b/frontend/camtel/frontend/src/app/router.tsx
+@@ -25,6 +25,7 @@ const AdminClientsPage = lazy(() => import('@/features/clients/pages/AdminClient
+ const AdminAnalyticsPage = lazy(() => import('@/features/analytics/pages/AdminAnalyticsPage'));
+ const AdminSourcesPage = lazy(() => import('@/features/sources/pages/AdminSourcesPage'));
+ const AdminAdministrationPage = lazy(() => import('@/features/administration/pages/AdminAdministrationPage'));
++const AdminRolesPage = lazy(() => import('@/features/administration/pages/AdminRolesPage'));
+ const EligibilityPage = lazy(() => import('@/features/eligibility/pages/EligibilityPage'));
+ 
+ const NewsListPage = lazy(() => import('@/features/news/pages/NewsListPage'));
+@@ -141,25 +142,42 @@ export function AppRouter() {
+               <Route path="*" element={<NotFoundPage />} />
+             </Route>
+ 
+-            <Route element={<RequireAuth roles={['editor']} />}>
++            <Route element={<RequireAuth backoffice />}>
+               <Route element={<AdminLayout />}>
+                 <Route path="/admin" element={<AdminDashboardPage />} />
+-                <Route path="/admin/catalogue" element={<AdminCataloguePage />} />
+-                <Route path="/admin/services" element={<AdminServicesPage />} />
+-                <Route path="/admin/offres" element={<AdminOffersPage />} />
+-                <Route path="/admin/clients" element={<AdminClientsPage />} />
+-                <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+-                <Route path="/admin/sources" element={<AdminSourcesPage />} />
+-                <Route path="/admin/administration" element={<AdminAdministrationPage />} />
+-                <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
+-                <Route path="/admin/qualite" element={<AdminDataQualityPage />} />
+ 
++                {/* Catalogue / produits / services / offres / sources / qualite :
++                    gestion du catalogue (product_manager, admin, super_admin). */}
+                 <Route element={<RequireAuth permission="edit_product_draft" />}>
++                  <Route path="/admin/catalogue" element={<AdminCataloguePage />} />
++                  <Route path="/admin/services" element={<AdminServicesPage />} />
++                  <Route path="/admin/offres" element={<AdminOffersPage />} />
++                  <Route path="/admin/sources" element={<AdminSourcesPage />} />
++                  <Route path="/admin/qualite" element={<AdminDataQualityPage />} />
+                   <Route path="/admin/produits" element={<AdminProductListPage />} />
+                   <Route path="/admin/produits/nouveau" element={<AdminProductFormPage />} />
+                   <Route path="/admin/produits/:id/modifier" element={<AdminProductFormPage />} />
+                 </Route>
+ 
++                {/* Souscriptions + tickets : administration (admin/super_admin). */}
++                <Route element={<RequireAuth permission="manage_subscriptions" />}>
++                  <Route path="/admin/souscriptions" element={<AdminSubscriptionListPage />} />
++                  <Route path="/admin/souscriptions/:id" element={<AdminSubscriptionDetailPage />} />
++                  <Route path="/admin/tickets" element={<AdminTicketListPage />} />
++                  <Route path="/admin/tickets/:id" element={<AdminTicketDetailPage />} />
++                </Route>
++
++                {/* Clients + utilisateurs : gestion des comptes (admin/super_admin). */}
++                <Route element={<RequireAuth permission="manage_users" />}>
++                  <Route path="/admin/clients" element={<AdminClientsPage />} />
++                  <Route path="/admin/utilisateurs" element={<AdminUserListPage />} />
++                </Route>
++
++                {/* Analytics : vue administrative (admin/super_admin). */}
++                <Route element={<RequireAuth permission="view_analytics" />}>
++                  <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
++                </Route>
++
+                 <Route element={<RequireAuth permission="manage_categories" />}>
+                   <Route path="/admin/categories" element={<AdminCategoryListPage />} />
+                 </Route>
+@@ -182,20 +200,15 @@ export function AppRouter() {
+                   <Route path="/admin/messages" element={<AdminContactInboxPage />} />
+                 </Route>
+ 
++                {/* Zone Super Admin : journal, administration, roles. */}
+                 <Route element={<RequireAuth permission="view_activity_log" />}>
+                   <Route path="/admin/journal" element={<AdminActivityLogPage />} />
++                  <Route path="/admin/administration" element={<AdminAdministrationPage />} />
++                  <Route path="/admin/roles" element={<AdminRolesPage />} />
+                 </Route>
+ 
+-                <Route element={<RequireAuth permission="manage_users" />}>
+-                  <Route path="/admin/utilisateurs" element={<AdminUserListPage />} />
+-                </Route>
+-
+-                <Route element={<RequireAuth permission="manage_subscriptions" />}>
+-                  <Route path="/admin/souscriptions" element={<AdminSubscriptionListPage />} />
+-                  <Route path="/admin/souscriptions/:id" element={<AdminSubscriptionDetailPage />} />
+-                  <Route path="/admin/tickets" element={<AdminTicketListPage />} />
+-                  <Route path="/admin/tickets/:id" element={<AdminTicketDetailPage />} />
+-                </Route>
++                {/* Notifications : toutes les staff (notifications owner-scopees). */}
++                <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
+               </Route>
+             </Route>
+           </Routes>
+diff --git a/frontend/camtel/frontend/src/features/auth/components/RequireAuth.tsx b/frontend/camtel/frontend/src/features/auth/components/RequireAuth.tsx
+index 127559b..7595b41 100644
+--- a/frontend/camtel/frontend/src/features/auth/components/RequireAuth.tsx
++++ b/frontend/camtel/frontend/src/features/auth/components/RequireAuth.tsx
+@@ -8,9 +8,20 @@ import { useTranslation } from 'react-i18next';
+ // authentifie, ou affiche un message si le role/la permission est insuffisant.
+ // `roles` sert aux gardes generales (ex: reserve au Super Admin), `permission`
+ // sert aux gardes metier fines alignees sur la matrice section 9.2.
+-export function RequireAuth({ roles, permission }: { roles?: UserRole[]; permission?: Permission }) {
++// `backoffice` bloque /admin pour tout utilisateur sans acces back-office
++// (CUSTOMER/anon), en s'appuyant sur le flag reel renvoye par le backend
++// (`can_access_backoffice` de /auth/me) ÔÇö jamais sur un simple calcul local.
++export function RequireAuth({
++  roles,
++  permission,
++  backoffice,
++}: {
++  roles?: UserRole[];
++  permission?: Permission;
++  backoffice?: boolean;
++}) {
+   const { t } = useTranslation();
+-  const { isAuthenticated, isLoading, hasRole, can } = useAuth();
++  const { isAuthenticated, isLoading, hasRole, can, canAccessBackoffice } = useAuth();
+   const location = useLocation();
+ 
+   if (isLoading) {
+@@ -21,7 +32,10 @@ export function RequireAuth({ roles, permission }: { roles?: UserRole[]; permiss
+     return <Navigate to="/admin/login" state={{ from: location }} replace />;
+   }
+ 
+-  const isForbidden = (roles && !hasRole(...roles)) || (permission && !can(permission));
++  const forbiddenByRoles = !!roles && !hasRole(...roles);
++  const forbiddenByPermission = !!permission && !can(permission);
++  const forbiddenByBackoffice = !!backoffice && !canAccessBackoffice;
++  const isForbidden = forbiddenByRoles || forbiddenByPermission || forbiddenByBackoffice;
+ 
+   if (isForbidden) {
+     return (
+diff --git a/frontend/camtel/frontend/src/features/auth/permissions.ts b/frontend/camtel/frontend/src/features/auth/permissions.ts
+index 55f99f4..0fadc3d 100644
+--- a/frontend/camtel/frontend/src/features/auth/permissions.ts
++++ b/frontend/camtel/frontend/src/features/auth/permissions.ts
+@@ -21,7 +21,8 @@ export type Permission =
+   | 'manage_users'
+   | 'promote_to_admin'
+   | 'view_activity_log'
+-  | 'manage_subscriptions';
++  | 'manage_subscriptions'
++  | 'view_analytics';
+ 
+ // NB: "manage_categories" et "delete_media" ne figurent pas litteralement
+ // dans la matrice d'origine (section 9.2) ; ils suivent par coherence la
+@@ -50,6 +51,10 @@ export const PERMISSIONS: Record<Permission, UserRole[]> = {
+   // Aligne sur AdminOnly cote backend (apps/core/permissions.py: ADMIN_ROLES
+   // = {SUPER_ADMIN, ADMIN}) pour list/retrieve/change-status des souscriptions.
+   manage_subscriptions: ['super_admin', 'admin'],
++  // Analytics : vue d'ensemble reservee aux administrateurs (Super Admin /
++  // Admin). Les roles redactionnels peuvent consommer l'API publique mais
++  // n'ont pas d'entree dediee dans le menu d'administration.
++  view_analytics: ['super_admin', 'admin'],
+ };
+ 
+ // Roles "principaux" (sans le legacy viewer) ÔÇö utilises pour l'attribution de

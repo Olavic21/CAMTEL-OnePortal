@@ -141,8 +141,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
-<<<<<<< HEAD
-=======
 
 # Python virtual environments
 .venv/
@@ -176,4 +174,10 @@ dist/
 # Local environment settings
 .env
 .venv
->>>>>>> CAMTEL-OnePortal2/main
+
+# SQLite development database (recree via migrations + seed, cf. README)
+backend/db.sqlite3
+
+# Media uploads (test artifacts)
+backend/media/
+

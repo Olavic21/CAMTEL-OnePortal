@@ -203,15 +203,19 @@ export interface ContactMessage {
   created_at: string;
 }
 
-export type ActivityAction = 'create' | 'update' | 'delete' | 'login';
+/** Actions journalisees cote backend (ActivityLog.ACTION_CHOICES, y compris 'view'). */
+export type ActivityAction = 'create' | 'update' | 'delete' | 'view' | 'login';
 
 export interface ActivityLog {
   id: number;
-  user_id: number;
-  user?: Pick<User, 'id' | 'username'>;
+  /** Null quand l'acteur a ete supprime (ActivityLog.user -> SET_NULL). */
+  user_id: number | null;
+  user?: Pick<User, 'id' | 'username'> | null;
   action: ActivityAction;
   target_model: string;
-  target_id: number;
+  target_id: number | null;
+  /** Detail libre renvoye par l'API (ActivityLog.details). */
+  details?: string | null;
   metadata?: Record<string, unknown> | null;
   created_at: string;
 }
@@ -302,6 +306,32 @@ export interface DashboardSummary {
   news_recent: News[];
   promotions_active: number;
   contact_messages_new: number;
+  // --- Compteurs Superadmin (donnees reelles du backend) ---
+  users?: {
+    total: number;
+    active: number;
+    customers: number;
+    backoffice: number;
+    super_admins: number;
+    admins: number;
+    by_role: Record<string, number>;
+  };
+  roles_count?: number;
+  subscriptions?: {
+    total: number;
+    pending: number;
+    activated: number;
+  };
+  tickets?: {
+    total: number;
+    open: number;
+  };
+  payments?: {
+    total: number;
+    pending: number;
+    completed: number;
+  };
+  notifications_unread_global?: number;
 }
 
 // Resume analytique admin (section 20 mission : "vues des offres, top

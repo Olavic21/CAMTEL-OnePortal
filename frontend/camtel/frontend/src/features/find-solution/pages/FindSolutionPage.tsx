@@ -21,9 +21,10 @@ import type { Service, Segment, ProductV2 } from '@/shared/types';
 /**
  * « Trouver ma solution » (/find-solution) — cahier des charges section 14.
  * Parcours guide en 4 etapes : besoin (service) -> profil (segment) ->
- * contraintes -> recommandations. La recommandation finale est demandee a
- * l'API (POST /recommendations/) ; en attendant que l'endpoint existe, le
- * hook retombe sur un tri local du catalogue (moteur affiche honnetement).
+ * contraintes -> recommandations. La recommandation finale est calculee par
+ * l'API (POST /recommendations/, moteur de scoring serveur) ; en cas de
+ * panne reseau uniquement, un tri local du catalogue prend le relais
+ * (moteur affiche honnetement).
  */
 
 interface Criteria {

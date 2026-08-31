@@ -17,6 +17,13 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
+      // Fichiers medias servis par Django (MEDIA_URL = '/media/') : images
+      // produits, couvertures d'actualites, mediatheque. Sans ce proxy, les
+      // <img src="/media/..."> renvoient 404 en dev (images cassees).
+      '/media': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
     },
   },
   test: {

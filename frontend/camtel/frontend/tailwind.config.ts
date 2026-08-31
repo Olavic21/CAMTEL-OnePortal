@@ -52,6 +52,22 @@ export default {
       borderRadius: {
         xl: '0.875rem',
       },
+      transitionDuration: {
+        DEFAULT: '250ms',
+        250: '250ms',
+      },
+      boxShadow: {
+        'card': '0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 2px 8px 0 rgba(0, 0, 0, 0.06)',
+        'card-hover': '0 4px 16px 0 rgba(0, 58, 217, 0.08), 0 8px 24px 0 rgba(0, 0, 0, 0.08)',
+      },
+      container: {
+        center: true,
+        padding: {
+          DEFAULT: '1rem',
+          sm: '1.5rem',
+          lg: '2rem',
+        },
+      },
     },
   },
   plugins: [],

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Compass, Sparkles, Radio, Headset, ShieldCheck, Zap, HeartHandshake, Newspaper, Calendar } from 'lucide-react';
+import { ArrowRight, Compass, Sparkles, Radio, Headset, ShieldCheck, Zap, Newspaper, Calendar } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useCatalog } from '@/features/products/hooks/useCatalog';
 import { useNewsList } from '@/features/news/hooks/useNews';
@@ -29,83 +29,102 @@ export default function HomePage() {
 
   return (
     <div>
-      {/* HERO */}
-      <section className="border-b border-neutral-200 bg-gradient-to-br from-primary-900 via-primary to-primary-700 text-white dark:border-neutral-800">
-        <div className="container-app grid grid-cols-1 items-center gap-10 py-16 lg:grid-cols-2 lg:py-24">
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <p className="mb-3 inline-block rounded-full bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide">
+      {/* HERO — message clair + CTA vers le catalogue / les services */}
+      <section className="relative overflow-hidden border-b border-neutral-200 bg-gradient-to-br from-primary-900 via-primary to-primary-700 text-white dark:border-neutral-800">
+        {/* Décor lumineux discret */}
+        <div aria-hidden className="pointer-events-none absolute inset-0">
+          <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
+          <div className="absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-accent/15 blur-3xl" />
+        </div>
+
+        <div className="container-app relative mx-auto flex max-w-3xl flex-col items-center py-16 text-center sm:py-20 lg:py-24">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            className="flex flex-col items-center"
+          >
+            <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1 text-xs font-semibold tracking-wide backdrop-blur-sm">
               {t('home.heroBadge')}
             </p>
-            <h1 className="text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
+            <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl lg:text-5xl">
               {t('home.heroTitleLine1')} <br /> {t('home.heroTitleLine2')}
             </h1>
-            <p className="mt-4 max-w-md text-white/80">{t('home.heroSubtitle')}</p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link to="/services/fixes">
+            <p className="mt-4 max-w-xl text-base text-white/80 sm:text-lg">{t('home.heroSubtitle')}</p>
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <Link to="/produits">
                 <Button size="lg" variant="secondary">
-                  {t('home.exploreServices')} <ArrowRight className="h-4 w-4" />
+                  {t('home.heroCtaCatalog')} <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link to="/trouver-une-solution">
+              {/* Ancre native : défilement fluide vers la section services */}
+              <a href="#services">
                 <Button size="lg" variant="tertiary" className="border-white/40 text-white hover:bg-white/10">
-                  <Compass className="h-4 w-4" /> {t('home.findSolution')}
+                  {t('home.heroCtaServices')}
                 </Button>
-              </Link>
+              </a>
             </div>
           </motion.div>
         </div>
       </section>
 
-      {/* LES 4 UNIVERS */}
-      <section className="container-app py-14">
-        <div className="mb-8 text-center">
-          <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{t('home.universTitle')}</h2>
-          <p className="mx-auto mt-2 max-w-2xl text-neutral-500 dark:text-neutral-400">{t('home.universSubtitle')}</p>
+      {/* DÉCOUVREZ NOS SERVICES — 4 cartes entièrement cliquables vers le catalogue */}
+      <section id="services" className="container-app scroll-mt-24 py-14 sm:py-16">
+        <div className="mb-10 text-center">
+          <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 sm:text-3xl">
+            {t('home.universTitle')}
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-neutral-500 dark:text-neutral-400">
+            {t('home.servicesSubtitle')}
+          </p>
         </div>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Mobile : 1 colonne / Tablette : 2 colonnes / Desktop : 4 colonnes */}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
           {SERVICES.map((s, i) => (
             <ServiceCard key={s.service} service={s} index={i} />
           ))}
         </div>
       </section>
 
-      {/* TROUVER MA SOLUTION */}
-      <section className="bg-primary-50 py-14 dark:bg-primary-950/40">
-        <div className="container-app flex flex-col items-center gap-6 text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white">
-            <Compass className="h-7 w-7" aria-hidden />
-          </span>
-          <h2 className="max-w-xl text-2xl font-bold text-neutral-900 dark:text-neutral-100">{t('home.findSolutionTitle')}</h2>
-          <p className="max-w-2xl text-neutral-600 dark:text-neutral-400">{t('home.findSolutionSubtitle')}</p>
-          <Link to="/trouver-une-solution">
-            <Button size="lg">
-              <Sparkles className="h-4 w-4" /> {t('home.findSolution')}
-            </Button>
-          </Link>
-        </div>
-      </section>
-
-      {/* OFFRES POPULAIRES */}
-      <section className="container-app py-14">
-        <div className="mb-8 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">{t('home.popularOffers')}</h2>
-          <Link to="/produits" className="text-sm font-medium text-primary hover:underline dark:text-primary-300">
-            {t('home.seeAll')}
-          </Link>
-        </div>
-        {loadingOffers ? (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="aspect-[4/3] w-full" />
-            ))}
+      {/* OFFRES POPULAIRES — données dynamiques du catalogue (API, jamais hardcodées) */}
+      <section className="bg-neutral-100 py-14 dark:bg-neutral-900">
+        <div className="container-app">
+          <div className="mb-8 flex items-end justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 sm:text-3xl">
+                {t('home.popularOffers')}
+              </h2>
+              <p className="mt-1.5 text-neutral-500 dark:text-neutral-400">
+                {t('home.catalogSectionSubtitle')}
+              </p>
+            </div>
+            <Link
+              to="/produits"
+              className="hidden shrink-0 items-center gap-1.5 text-sm font-semibold text-primary hover:underline sm:inline-flex dark:text-primary-300"
+            >
+              {t('home.seeAllOffers')} <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {offers.slice(0, 4).map((p, i) => (
-              <ProductCard key={String(p.id)} product={p} index={i} />
-            ))}
+          {loadingOffers ? (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="aspect-[4/3] w-full" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+              {offers.slice(0, 4).map((p, i) => (
+                <ProductCard key={String(p.id)} product={p} index={i} />
+              ))}
+            </div>
+          )}
+          {/* CTA visible uniquement sur mobile (le lien remplace l'entrée du header) */}
+          <div className="mt-8 text-center sm:hidden">
+            <Link to="/produits">
+              <Button variant="tertiary">{t('home.seeAllOffers')}</Button>
+            </Link>
           </div>
-        )}
+        </div>
       </section>
 
       {/* SOLUTIONS PAR PROFIL (segments — PAS des services) */}
@@ -161,6 +180,24 @@ function HomeBody({
               <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{t(`home.${key}Desc`)}</p>
             </Card>
           ))}
+        </div>
+      </section>
+
+      {/* TROUVER MA SOLUTION — assistant de recommandation (fonctionnalité existante) */}
+      <section className="bg-primary-50 py-14 dark:bg-primary-950/40">
+        <div className="container-app flex flex-col items-center gap-6 text-center">
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white">
+            <Compass className="h-7 w-7" aria-hidden />
+          </span>
+          <h2 className="max-w-xl text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+            {t('home.findSolutionTitle')}
+          </h2>
+          <p className="max-w-2xl text-neutral-600 dark:text-neutral-400">{t('home.findSolutionSubtitle')}</p>
+          <Link to="/trouver-une-solution">
+            <Button size="lg">
+              <Sparkles className="h-4 w-4" /> {t('home.findSolution')}
+            </Button>
+          </Link>
         </div>
       </section>
 
@@ -227,23 +264,30 @@ function HomeBody({
         </div>
       </section>
 
-      {/* ASSISTANCE */}
-      <section className="container-app py-16 text-center">
-        <Card className="mx-auto max-w-2xl p-8">
-          <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-100 text-accent-700 dark:bg-accent-900/40 dark:text-accent-300">
-            <HeartHandshake className="h-7 w-7" aria-hidden />
-          </span>
-          <h2 className="text-xl font-bold text-neutral-900 dark:text-neutral-100">{t('home.assistanceTitle')}</h2>
-          <p className="mx-auto mt-2 max-w-md text-neutral-500 dark:text-neutral-400">{t('home.assistanceSubtitle')}</p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Link to="/assistant">
-              <Button>{t('home.tryAssistant')}</Button>
-            </Link>
-            <Link to="/contact">
-              <Button variant="tertiary">{t('nav.contact')}</Button>
-            </Link>
+      {/* APPEL À L'ACTION FINAL — explore le catalogue / l'assistant */}
+      <section className="container-app py-16">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary-900 via-primary to-primary-600 px-6 py-12 text-center text-white sm:px-12 sm:py-16">
+          <div aria-hidden className="pointer-events-none absolute inset-0">
+            <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+            <div className="absolute -bottom-20 -left-10 h-56 w-56 rounded-full bg-accent/20 blur-3xl" />
           </div>
-        </Card>
+          <div className="relative mx-auto max-w-2xl">
+            <h2 className="text-2xl font-bold sm:text-3xl">{t('home.ctaTitle')}</h2>
+            <p className="mt-3 text-white/80">{t('home.ctaSubtitle')}</p>
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <Link to="/produits">
+                <Button size="lg" variant="secondary">
+                  {t('home.ctaButton')} <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+              <Link to="/assistant">
+                <Button size="lg" variant="tertiary" className="border-white/40 text-white hover:bg-white/10">
+                  {t('home.tryAssistant')}
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   );

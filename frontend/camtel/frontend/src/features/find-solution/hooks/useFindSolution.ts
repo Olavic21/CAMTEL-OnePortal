@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { recommendationsApi, type RecommendationCriteria } from '../api/recommendationsApi';
+import { mapApiProductToV2 } from '@/features/products/api/productsApi';
 import { useCatalog } from '@/features/products/hooks/useCatalog';
 import type { ProductV2 } from '@/shared/types';
 
@@ -16,10 +17,11 @@ function specNumber(p: ProductV2, key: string): number | null {
 }
 
 /**
- * Scoring LOCAL (fallback quand POST /recommendations/ n'est pas encore
- * expose). Ce n'est PAS de la logique metier backend : un simple tri de
- * pertinence UX sur le catalogue deja charge, remplace des que l'API
- * de recommandation existe (try API d'abord, catch => local).
+ * Scoring LOCAL — filet de securite UNIQUEMENT si l'endpoint backend est
+ * indisponible (panne reseau). Le moteur de reference est serveur :
+ * POST /api/v1/recommendations/ (recommend_products_by_criteria). Ce tri
+ * local n'est jamais utilise quand l'API repond (y compris reponse vide :
+ * le backend fait autorite sur « aucune offre ne correspond »).
  */
 function localRecommend(criteria: RecommendationCriteria, catalog: ProductV2[]): ProductV2[] {
   let pool = catalog;
@@ -50,17 +52,20 @@ function localRecommend(criteria: RecommendationCriteria, catalog: ProductV2[]):
 }
 
 export function useFindSolution() {
-  // Catalogue source pour le fallback local (mocks conformes au contrat).
+  // Catalogue reel (backend) source du filet de securite local.
   const { data: catalog, isLoading } = useCatalog({});
 
   const mutation = useMutation({
     mutationFn: async (criteria: RecommendationCriteria): Promise<FindSolutionResult> => {
       try {
         const api = await recommendationsApi.recommend(criteria);
-        if (api.results?.length) return { products: api.results, engine: 'API' };
-        return { products: localRecommend(criteria, catalog?.results ?? []), engine: 'LOCAL' };
+        // Reponse = contrat ProductSerializer (offres publiees, scoring
+        // serveur) -> mapping V2 pour les composants UI. Une reponse vide
+        // est honnete : aucune offre publiee ne correspond aux criteres.
+        return { products: (api.results ?? []).map(mapApiProductToV2), engine: 'API' };
       } catch {
-        // Endpoint /recommendations/ indisponible => tri local du catalogue.
+        // Endpoint indisponible (backend hors ligne) : filet de securite UX,
+        // explicitement affiche comme moteur LOCAL par la page.
         return { products: localRecommend(criteria, catalog?.results ?? []), engine: 'LOCAL' };
       }
     },

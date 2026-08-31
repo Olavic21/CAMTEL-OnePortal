@@ -21,7 +21,8 @@ export type Permission =
   | 'manage_users'
   | 'promote_to_admin'
   | 'view_activity_log'
-  | 'manage_subscriptions';
+  | 'manage_subscriptions'
+  | 'view_analytics';
 
 // NB: "manage_categories" et "delete_media" ne figurent pas litteralement
 // dans la matrice d'origine (section 9.2) ; ils suivent par coherence la
@@ -50,6 +51,10 @@ export const PERMISSIONS: Record<Permission, UserRole[]> = {
   // Aligne sur AdminOnly cote backend (apps/core/permissions.py: ADMIN_ROLES
   // = {SUPER_ADMIN, ADMIN}) pour list/retrieve/change-status des souscriptions.
   manage_subscriptions: ['super_admin', 'admin'],
+  // Analytics : vue d'ensemble reservee aux administrateurs (Super Admin /
+  // Admin). Les roles redactionnels peuvent consommer l'API publique mais
+  // n'ont pas d'entree dediee dans le menu d'administration.
+  view_analytics: ['super_admin', 'admin'],
 };
 
 // Roles "principaux" (sans le legacy viewer) — utilises pour l'attribution de

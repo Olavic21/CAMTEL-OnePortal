@@ -1,0 +1,186 @@
+/* =============================================================================
+ * DESIGN SYSTEM — Tokens centralisés CAMTEL-OnePortal
+ * =============================================================================
+ * Regle #5 : toutes les couleurs proviennent d'un systeme de design centralise.
+ * Ce fichier definit les variables CSS utilisees dans toute l'application.
+ * Les valeurs proviennent de la palette CAMTEL officielle (#003DA5 bleu,
+ * #00A651 vert) et sont exposées via Tailwind (extend.colors).
+ * ========================================================================== */
+
+:root {
+  /* === COULEURS PRIMALES (CAMTEL) === */
+  --color-primary: #003da5;
+  --color-primary-50: #e6edf9;
+  --color-primary-100: #c1d3f0;
+  --color-primary-200: #98b6e6;
+  --color-primary-300: #6e98db;
+  --color-primary-400: #4a7ed3;
+  --color-primary-500: #003da5;
+  --color-primary-600: #003692;
+  --color-primary-700: #002d7a;
+  --color-primary-800: #002461;
+  --color-primary-900: #001a47;
+
+  /* === COULEURS D'ACCENT === */
+  --color-accent: #00a651;
+  --color-accent-50: #e5f7ed;
+  --color-accent-100: #b8ebce;
+  --color-accent-200: #87deac;
+  --color-accent-300: #55d089;
+  --color-accent-400: #2ac46e;
+  --color-accent-500: #00a651;
+  --color-accent-600: #009449;
+  --color-accent-700: #007d3e;
+  --color-accent-800: #006633;
+  --color-accent-900: #004022;
+
+  /* === NEUTRES (gris CAMTEL) === */
+  --color-neutral-50: #fafaf9;
+  --color-neutral-100: #f4f3f1;
+  --color-neutral-200: #e6e4e1;
+  --color-neutral-300: #d3d1cd;
+  --color-neutral-400: #a8a6a1;
+  --color-neutral-500: #7c7a76;
+  --color-neutral-600: #5c5a57;
+  --color-neutral-700: #403e3b;
+  --color-neutral-800: #2b2b2e;
+  --color-neutral-800: #2b2b2e;
+  --color-neutral-900: #1b1b1e;
+  --color-neutral-900: #1b1bd;
+    /* === ÉTATS === */
+  --color-success: #00a651;
+  --color-success-bg: #e5f7ed;
+  --color-success-border: #b8ebce;
+
+  --color-warning: #ea981a;
+  --color-warning-bg: #fef5e9;
+  --color-warning-border: #fde0b2;
+
+  --color-error: #e11900;
+  --color-error-bg: #ffebee;
+  --color-error-border: #ffcdd2;
+
+  --color-info: #0288d1;
+  --color-info-bg: #e3f2fd;
+  --color-info-border: #b3e5fc;
+
+  /* === SURFACES === */
+  --color-surface: #ffffff;
+  --color-surface-dark: #0f0f10;
+  --color-background: #fafaf9;
+  --color-background-dark: #121213;
+
+  /* === TEXTE === */
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #5c5a57;
+  --color-text-disabled: #a8a6a1;
+  --color-text-on-primary: #ffffff;
+    --color-text-on-primary-secondary: #e6edf9;
+
+  /* === BORDURES === */
+  --color-border: #e6e4e1;
+  --color-border-dark: #2b2b2e;
+  --color-border-hover: #c1d3f0;
+
+  /* === OMBRES (subtiles, premium) === */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 4px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 8px 0 rgba(0, 0, 0, 0.05), 0 4px 16px 0 rgba(0, 58, 217, 0.06);
+  --shadow-lg: 0 4px 16px 0 rgba(0, 0, 0, 0.08), 0 8px 24px 0 rgba(0, 58, 217, 0.08);
+  --shadow-xl: 0 8px 24px 0 rgba(0, 0, 0, 0.12), 0 16px 32px 0 rgba(0, 58, 217, 0.12);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 2px 8px 0 rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 4px 16px 0 rgba(0, 58, 217, 0.08), 0 8px 24px 0 rgba(0, 0, 0, 0.08);
+
+  /* === RAYONS === */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* === TYPOGRAPHIE === */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+  --font-size-5xl: 3rem;
+  --font-size-6xl: 3.75rem;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+    --font-weight-extrabold: 800;
+
+  /* === ESPACEMENTS (base 4) === */
+  --spacing-0: 0;
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-5: 1.25rem;
+  --spacing-6: 1.5rem;
+  --spacing-7: 1.75rem;
+  --spacing-8: 2rem;
+  --spacing-10: 2.5rem;
+  --spacing-12: 3rem;
+  --spacing-14: 3.5rem;
+  --spacing-16: 4rem;
+
+  /* === DURÉES D'ANIMATION === */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Mode sombre — override des variables de surface/texte.
+ * Les couleurs CAMTEL restent identiques (marque). */
+[data-theme='dark'],
+.dark {
+  --color-surface: #0f0f10;
+  --color-background: #121213;
+  --color-text-primary: #f4f3f1;
+  --color-text-secondary: #a8a6a1;
+  --color-text-disabled: #7c7a76;
+  --color-border: #2b2b2e;
+    --color-border-hover: #403e3b;
+}
+
+/* =============================================================================
+ * COMPOSANTS UTILITAIRES (classes réutilisables)
+ * ========================================================================== */
+
+/* Section titre standardisée */
+.ds-section-title {
+  @apply text-2xl font-bold text-neutral-900 sm:text-3xl dark:text-neutral-100;
+}
+
+.ds-section-subtitle {
+  @apply mt-3 mx-auto max-w-2xl text-neutral-500 dark:text-neutral-400;
+}
+
+/* Carte premium élégante */
+.ds-card {
+  @apply rounded-xl border border-neutral-200 bg-white shadow-card transition-all duration-250 dark:border-neutral-800 dark:bg-neutral-900;
+}
+
+.ds-card:hover {
+  @apply shadow-card-hover translate-y-[-2px];
+}
+
+/* Bouton CTA élégant */
+.ds-btn-primary {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-base font-semibold text-white transition-all duration-250 hover:bg-primary-600 hover:shadow-lg hover:translate-y-[-1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300 focus-visible:ring-offset-2;
+}
+
+.ds-btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-transparent px-6 py-3 text-base font-semibold text-neutral-700 transition-all duration-250 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800;
+}
+

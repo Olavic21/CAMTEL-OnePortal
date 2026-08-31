@@ -12,10 +12,15 @@ const actionTone = {
   create: 'success',
   update: 'warning',
   delete: 'neutral',
+  view: 'info',
   login: 'neutral',
 } as const;
 
 // Journal d'activite (roadmap V2, section 10.10) : table filtrable par utilisateur/modele/periode.
+// Regles #21/#22 : aucune valeur "undefined"/"null" dans l'interface — chaque
+// colonne possede un fallback propre aligne sur le sens reel de la donnee
+// (API /activitylogs/ -> ActivityLogSerializer : user {id, username} | null,
+// user_id | null, target_id | null, details).
 export default function AdminActivityLogPage() {
   const { t } = useTranslation();
   const [targetModel, setTargetModel] = useState('');
@@ -26,6 +31,7 @@ export default function AdminActivityLogPage() {
     create: t('admin.activityLog.create'),
     update: t('admin.activityLog.update'),
     delete: t('admin.activityLog.delete'),
+    view: t('admin.activityLog.view'),
     login: t('admin.activityLog.login'),
   } as const;
 
@@ -35,14 +41,32 @@ export default function AdminActivityLogPage() {
     page,
   });
 
+  // Utilisateur : nom lisible ; "Systeme" pour les entrees sans acteur
+  // (user supprime/SET_NULL) — jamais "#undefined".
+  const userLabel = (log: ActivityLog): string =>
+    log.user?.username ?? (log.user_id != null ? `#${log.user_id}` : t('admin.activityLog.systemUser'));
+
+  // Ressource : "#<id>" uniquement si l'identifiant existe reellement.
+  const targetLabel = (log: ActivityLog): string =>
+    log.target_id != null ? `${log.target_model} #${log.target_id}` : log.target_model;
+
   const columns: Column<ActivityLog>[] = [
-    { key: 'user', header: t('admin.activityLog.user'), render: (log) => log.user?.username ?? `#${log.user_id}` },
+    { key: 'user', header: t('admin.activityLog.user'), render: (log) => userLabel(log) },
     {
       key: 'action',
       header: t('admin.activityLog.action'),
-      render: (log) => <Badge tone={actionTone[log.action]}>{actionLabel[log.action]}</Badge>,
+      render: (log) => (
+        <Badge tone={actionTone[log.action] ?? 'neutral'}>
+          {actionLabel[log.action] ?? log.action}
+        </Badge>
+      ),
     },
-    { key: 'target', header: t('admin.activityLog.resource'), render: (log) => `${log.target_model} #${log.target_id}` },
+    { key: 'target', header: t('admin.activityLog.resource'), render: (log) => targetLabel(log) },
+    {
+      key: 'details',
+      header: t('admin.activityLog.details'),
+      render: (log) => (log.details?.trim() ? log.details : '—'),
+    },
     { key: 'date', header: t('admin.activityLog.date'), render: (log) => formatDateTime(log.created_at) },
   ];
 

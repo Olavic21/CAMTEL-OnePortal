@@ -9,15 +9,11 @@ import { Badge } from '@/shared/components/Badge';
 import { Select } from '@/shared/components/Input';
 import { Pagination } from '@/shared/components/Pagination';
 import { useToast } from '@/shared/components/Toast';
+import { ProductImage } from '@/shared/components/ProductImage';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { formatPrice } from '@/shared/utils/format';
-import type { Product, ProductStatus } from '@/shared/types';
-
-const statusTone: Record<ProductStatus, 'draft' | 'success' | 'neutral'> = {
-  draft: 'draft',
-  published: 'success',
-  archived: 'neutral',
-};
+import { productStatusMeta, PRODUCT_STATUS_FILTERS } from '@/features/products/lib/status';
+import type { Product } from '@/shared/types';
 
 export default function AdminProductListPage() {
   const { t } = useTranslation();
@@ -29,20 +25,35 @@ export default function AdminProductListPage() {
   const { push } = useToast();
   const { can } = useAuth();
 
-  const statusLabel: Record<ProductStatus, string> = {
-    draft: t('admin.products.draft'),
-    published: t('admin.products.published'),
-    archived: t('admin.products.archived'),
-  };
+  const primaryImageOf = (p: Product) =>
+    p.images?.find((img) => img.is_primary) ?? p.images?.[0];
 
   const columns: Column<Product>[] = [
+    {
+      key: 'image',
+      header: t('admin.products.image'),
+      render: (p) => (
+        <div className="h-11 w-14 overflow-hidden rounded-lg border border-neutral-200 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900">
+          <ProductImage
+            src={primaryImageOf(p)?.image}
+            alt={primaryImageOf(p)?.alt_text ?? p.name}
+            service={p.service}
+          />
+        </div>
+      ),
+    },
     { key: 'name', header: t('admin.products.product'), render: (p) => <span className="font-medium">{p.name}</span> },
     { key: 'category', header: t('admin.products.category'), render: (p) => p.category?.name ?? '-' },
     { key: 'price', header: t('admin.products.price'), render: (p) => formatPrice(p.price, p.price_unit) },
     {
       key: 'status',
       header: t('common.status'),
-      render: (p) => <Badge tone={statusTone[p.status]}>{statusLabel[p.status]}</Badge>,
+      render: (p) => {
+        const pub = (p as Product & { is_published?: boolean }).is_published;
+        const s = p.status || (pub ? 'VALID' : pub === false ? 'DRAFT' : null);
+        const meta = productStatusMeta(s);
+        return meta ? <Badge tone={meta.tone}>{meta.label}</Badge> : null;
+      },
     },
     {
       key: 'actions',
@@ -54,7 +65,7 @@ export default function AdminProductListPage() {
               <Pencil className="h-4 w-4" />
             </Link>
           )}
-          {p.status === 'draft' && can('publish_product') && (
+          {!p.status && (p as Product & { is_published?: boolean }).is_published === false && can('publish_product') && (
             <button
               onClick={() =>
                 publishProduct.mutate(p.id, { onSuccess: () => push(t('admin.products.published_toast')) })
@@ -101,9 +112,7 @@ export default function AdminProductListPage() {
       <div className="mb-4 max-w-xs">
         <Select value={status} onChange={(e) => setStatus(e.target.value)} aria-label={t('common.status')}>
           <option value="">{t('admin.products.allStatuses')}</option>
-          <option value="draft">{t('admin.products.draft')}</option>
-          <option value="published">{t('admin.products.published')}</option>
-          <option value="archived">{t('admin.products.archived')}</option>
+          {PRODUCT_STATUS_FILTERS.map((s) => (<option key={s} value={s}>{s}</option>))}
         </Select>
       </div>
 

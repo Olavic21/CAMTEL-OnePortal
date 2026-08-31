@@ -6,6 +6,7 @@ import { Badge } from '@/shared/components/Badge';
 import { PriceDisplay } from '@/shared/components/PriceDisplay';
 import { ServiceBadge } from '@/shared/components/ServiceBadge';
 import { SegmentBadge } from '@/shared/components/SegmentBadge';
+import { ProductImage } from '@/shared/components/ProductImage';
 import { useTranslation } from 'react-i18next';
 
 // Accepte aussi bien le modele historique (Product) que le nouveau contrat (ProductV2).
@@ -50,16 +51,11 @@ export function ProductCard({ product, index = 0 }: { product: AnyProduct; index
       <Link to={`/produits/${slug}`}>
         <Card className="flex h-full flex-col overflow-hidden">
           <div className="aspect-[4/3] w-full bg-neutral-100 dark:bg-neutral-800">
-            {primaryImage ? (
-              <img
-                src={primaryImage.image}
-                alt={primaryImage.alt_text ?? name}
-                loading="lazy"
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-neutral-300">CAMTEL</div>
-            )}
+            <ProductImage
+              src={primaryImage?.image}
+              alt={primaryImage?.alt_text ?? name}
+              service={service}
+            />
           </div>
           <div className="flex flex-1 flex-col gap-2 p-4">
             <div className="flex flex-wrap items-center gap-2">

@@ -13,6 +13,7 @@ from rest_framework.test import APITestCase
 from apps.categories.models import Category
 from apps.core.models import ActivityLog, AnalyticsEvent, Notification, Payment, SupportTicket, TicketMessage
 from apps.core.providers import MockLLMProvider, build_rag_prompt, get_llm_provider, run_rag_pipeline
+from apps.core.serializers import ActivityLogSerializer
 from apps.core.v2_services import DocumentStore, get_email_provider, get_payment_provider, recommend_products
 from apps.core.v3_services import (
     get_billing_provider,
@@ -125,6 +126,48 @@ class ActivityLogModelTest(TestCase):
             target_id=1,
         )
         self.assertIn('admin', str(log))
+
+
+class ActivityLogSerializerContractTest(TestCase):
+    """Contrat API du journal (bug #undefined corrige).
+
+    Le frontend (AdminActivityLogPage + ActivityLog type) attend :
+      user_id : number | null   (jamais absent -> sinon '#undefined')
+      user    : { id, username } | null (jamais une simple string)
+      target_id : number | null
+      details : string
+    Toute regression ici reintroduit des '#' + undefined dans l'UI.
+    """
+
+    def test_user_serialized_as_object_with_user_id(self):
+        user = User.objects.create_user(username='superadmin', password='pass', role=User.Role.SUPER_ADMIN)
+        log = ActivityLog.objects.create(
+            user=user,
+            action='create',
+            target_model='Product',
+            target_id=7,
+            details='Import catalogue',
+        )
+        data = ActivityLogSerializer(log).data
+        self.assertEqual(data['user_id'], user.pk)
+        self.assertEqual(data['user'], {'id': user.pk, 'username': 'superadmin'})
+        self.assertEqual(data['target_id'], 7)
+        self.assertEqual(data['details'], 'Import catalogue')
+
+    def test_deleted_user_and_null_target_render_clean_fallbacks(self):
+        # user=NULL (SET_NULL apres suppression) + target_id=NULL :
+        # le serializer doit renvoyer null (le frontend affiche alors
+        # "Systeme" / "Product" — jamais "#undefined" ni "#null").
+        log = ActivityLog.objects.create(
+            user=None,
+            action='view',
+            target_model='Product',
+            target_id=None,
+        )
+        data = ActivityLogSerializer(log).data
+        self.assertIsNone(data['user_id'])
+        self.assertIsNone(data['user'])
+        self.assertIsNone(data['target_id'])
 
 
 class NotificationModelTest(TestCase):
@@ -624,6 +667,76 @@ class V2EndpointsTest(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['count'], 1)
         self.assertIn('reasons', response.data['results'][0])
+
+    def test_recommendations_post_scores_catalog_server_side(self):
+        """Section 14 : POST /recommendations/ — le scoring est SERVEUR :
+        filtres service/segment (taxonomie V4 : INTERNET -> fixes), tri par
+        score, contrat ProductSerializer."""
+        from apps.products.models import Service
+
+        # Les verticales officielles sont deja presentees par data migration :
+        # get_or_create (idempotent) au lieu d'un create qui violerait l'UNIQUE.
+        fixes, _ = Service.objects.get_or_create(
+            slug='fixes',
+            defaults={'code': Service.Code.FIXED, 'name': 'Fixes'},
+        )
+        mobiles, _ = Service.objects.get_or_create(
+            slug='mobiles',
+            defaults={'code': Service.Code.MOBILE, 'name': 'Mobiles'},
+        )
+        Product.objects.create(
+            name='Fibre Poste API',
+            slug='fibre-poste-api',
+            description='Offre fixes publiee',
+            price='15000.00',
+            category=self.category,
+            service=fixes,
+            offer_type=Product.OfferType.FIBER,
+            segment=Product.Segment.PARTICULIER,
+            speed='100 Mbps',
+            is_published=True,
+            is_active=True,
+        )
+        Product.objects.create(
+            name='Forfait Mobile API',
+            slug='forfait-mobile-api',
+            description='Offre mobile publiee',
+            price='5000.00',
+            category=self.category,
+            service=mobiles,
+            offer_type=Product.OfferType.MOBILE,
+            segment=Product.Segment.PARTICULIER,
+            is_published=True,
+            is_active=True,
+        )
+        response = self.client.post('/api/v1/recommendations/', {
+            'service': 'fixes', 'segment': 'PARTICULIER', 'budget': 20000,
+        }, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['engine'], 'criteria')
+        slugs = [item['slug'] for item in response.data['results']]
+        # Taxonomie V4 : INTERNET -> fixes. self.product (offre internet)
+        # appartient donc A l'univers fixes ; l'offre mobile est exclue par
+        # le filtre service. Le budget (12000 et 15000 <= 20000) ne filtre
+        # rien ici : les deux offres fixes sont retournees.
+        self.assertEqual(
+            sorted(slugs),
+            sorted(['fibre-poste-api', self.product.slug]),
+        )
+        self.assertNotIn('forfait-mobile-api', slugs)
+
+    def test_recommendations_post_rejects_invalid_criteria(self):
+        """Criteres non numeriques / users < 1 : 400 explicite, jamais ignores."""
+        response = self.client.post('/api/v1/recommendations/', {'budget': 'beaucoup'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.post('/api/v1/recommendations/', {'users': 0}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_recommendations_post_without_criteria_returns_published_catalog(self):
+        response = self.client.post('/api/v1/recommendations/', {}, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.assertGreaterEqual(response.data['count'], 1)
 
 
 class SearchAutocompleteViewTest(APITestCase):

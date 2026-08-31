@@ -25,6 +25,7 @@ const AdminClientsPage = lazy(() => import('@/features/clients/pages/AdminClient
 const AdminAnalyticsPage = lazy(() => import('@/features/analytics/pages/AdminAnalyticsPage'));
 const AdminSourcesPage = lazy(() => import('@/features/sources/pages/AdminSourcesPage'));
 const AdminAdministrationPage = lazy(() => import('@/features/administration/pages/AdminAdministrationPage'));
+const AdminRolesPage = lazy(() => import('@/features/administration/pages/AdminRolesPage'));
 const EligibilityPage = lazy(() => import('@/features/eligibility/pages/EligibilityPage'));
 
 const NewsListPage = lazy(() => import('@/features/news/pages/NewsListPage'));
@@ -141,23 +142,40 @@ export function AppRouter() {
               <Route path="*" element={<NotFoundPage />} />
             </Route>
 
-            <Route element={<RequireAuth roles={['editor']} />}>
+            <Route element={<RequireAuth backoffice />}>
               <Route element={<AdminLayout />}>
                 <Route path="/admin" element={<AdminDashboardPage />} />
-                <Route path="/admin/catalogue" element={<AdminCataloguePage />} />
-                <Route path="/admin/services" element={<AdminServicesPage />} />
-                <Route path="/admin/offres" element={<AdminOffersPage />} />
-                <Route path="/admin/clients" element={<AdminClientsPage />} />
-                <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
-                <Route path="/admin/sources" element={<AdminSourcesPage />} />
-                <Route path="/admin/administration" element={<AdminAdministrationPage />} />
-                <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
-                <Route path="/admin/qualite" element={<AdminDataQualityPage />} />
 
+                {/* Catalogue / produits / services / offres / sources / qualite :
+                    gestion du catalogue (product_manager, admin, super_admin). */}
                 <Route element={<RequireAuth permission="edit_product_draft" />}>
+                  <Route path="/admin/catalogue" element={<AdminCataloguePage />} />
+                  <Route path="/admin/services" element={<AdminServicesPage />} />
+                  <Route path="/admin/offres" element={<AdminOffersPage />} />
+                  <Route path="/admin/sources" element={<AdminSourcesPage />} />
+                  <Route path="/admin/qualite" element={<AdminDataQualityPage />} />
                   <Route path="/admin/produits" element={<AdminProductListPage />} />
                   <Route path="/admin/produits/nouveau" element={<AdminProductFormPage />} />
                   <Route path="/admin/produits/:id/modifier" element={<AdminProductFormPage />} />
+                </Route>
+
+                {/* Souscriptions + tickets : administration (admin/super_admin). */}
+                <Route element={<RequireAuth permission="manage_subscriptions" />}>
+                  <Route path="/admin/souscriptions" element={<AdminSubscriptionListPage />} />
+                  <Route path="/admin/souscriptions/:id" element={<AdminSubscriptionDetailPage />} />
+                  <Route path="/admin/tickets" element={<AdminTicketListPage />} />
+                  <Route path="/admin/tickets/:id" element={<AdminTicketDetailPage />} />
+                </Route>
+
+                {/* Clients + utilisateurs : gestion des comptes (admin/super_admin). */}
+                <Route element={<RequireAuth permission="manage_users" />}>
+                  <Route path="/admin/clients" element={<AdminClientsPage />} />
+                  <Route path="/admin/utilisateurs" element={<AdminUserListPage />} />
+                </Route>
+
+                {/* Analytics : vue administrative (admin/super_admin). */}
+                <Route element={<RequireAuth permission="view_analytics" />}>
+                  <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
                 </Route>
 
                 <Route element={<RequireAuth permission="manage_categories" />}>
@@ -182,20 +200,15 @@ export function AppRouter() {
                   <Route path="/admin/messages" element={<AdminContactInboxPage />} />
                 </Route>
 
+                {/* Zone Super Admin : journal, administration, roles. */}
                 <Route element={<RequireAuth permission="view_activity_log" />}>
                   <Route path="/admin/journal" element={<AdminActivityLogPage />} />
+                  <Route path="/admin/administration" element={<AdminAdministrationPage />} />
+                  <Route path="/admin/roles" element={<AdminRolesPage />} />
                 </Route>
 
-                <Route element={<RequireAuth permission="manage_users" />}>
-                  <Route path="/admin/utilisateurs" element={<AdminUserListPage />} />
-                </Route>
-
-                <Route element={<RequireAuth permission="manage_subscriptions" />}>
-                  <Route path="/admin/souscriptions" element={<AdminSubscriptionListPage />} />
-                  <Route path="/admin/souscriptions/:id" element={<AdminSubscriptionDetailPage />} />
-                  <Route path="/admin/tickets" element={<AdminTicketListPage />} />
-                  <Route path="/admin/tickets/:id" element={<AdminTicketDetailPage />} />
-                </Route>
+                {/* Notifications : toutes les staff (notifications owner-scopees). */}
+                <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
               </Route>
             </Route>
           </Routes>
