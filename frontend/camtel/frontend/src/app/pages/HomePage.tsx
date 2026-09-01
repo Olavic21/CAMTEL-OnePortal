@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Compass, Sparkles, Radio, Headset, ShieldCheck, Zap, Newspaper, Calendar } from 'lucide-react';
+import { ArrowRight, Compass, Sparkles, Radio, Headset, ShieldCheck, Zap, Newspaper, Calendar, Phone, Smartphone, Truck, Server } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useCatalog } from '@/features/products/hooks/useCatalog';
 import { useNewsList } from '@/features/news/hooks/useNews';
@@ -29,20 +29,18 @@ export default function HomePage() {
 
   return (
     <div>
-      {/* HERO — message clair + CTA vers le catalogue / les services */}
+      {/* HERO — spec Phase 4: Toute l'offre CAMTEL + illustrations 4 univers */}
       <section className="relative overflow-hidden border-b border-neutral-200 bg-gradient-to-br from-primary-900 via-primary to-primary-700 text-white dark:border-neutral-800">
-        {/* Décor lumineux discret */}
         <div aria-hidden className="pointer-events-none absolute inset-0">
           <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/5 blur-3xl" />
           <div className="absolute -bottom-32 -left-16 h-80 w-80 rounded-full bg-accent/15 blur-3xl" />
         </div>
-
-        <div className="container-app relative mx-auto flex max-w-3xl flex-col items-center py-16 text-center sm:py-20 lg:py-24">
+        <div className="container-app relative grid gap-8 py-12 sm:py-16 lg:grid-cols-2 lg:items-center lg:py-20">
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
-            className="flex flex-col items-center"
+            className="flex flex-col items-start text-left"
           >
             <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3.5 py-1 text-xs font-semibold tracking-wide backdrop-blur-sm">
               {t('home.heroBadge')}
@@ -51,20 +49,34 @@ export default function HomePage() {
               {t('home.heroTitleLine1')} <br /> {t('home.heroTitleLine2')}
             </h1>
             <p className="mt-4 max-w-xl text-base text-white/80 sm:text-lg">{t('home.heroSubtitle')}</p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <div className="mt-8 flex flex-wrap gap-3">
               <Link to="/produits">
                 <Button size="lg" variant="secondary">
                   {t('home.heroCtaCatalog')} <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              {/* Ancre native : défilement fluide vers la section services */}
-              <a href="#services">
+              <Link to="/services">
                 <Button size="lg" variant="tertiary" className="border-white/40 text-white hover:bg-white/10">
                   {t('home.heroCtaServices')}
                 </Button>
-              </a>
+              </Link>
             </div>
           </motion.div>
+          {/* Illustrations légères 4 univers — SVG + Lucide, pas d'images externes */}
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              { icon: Phone, label: 'Fixes', sub: 'fibre / voix', color: 'bg-white/10' },
+              { icon: Smartphone, label: 'Mobiles', sub: 'Blue / 4G', color: 'bg-white/10' },
+              { icon: Truck, label: 'Transport', sub: 'fibre / MPLS', color: 'bg-white/10' },
+              { icon: Server, label: 'Data Center', sub: 'cloud / hosting', color: 'bg-white/10' },
+            ].map(({ icon: Icon, label, sub, color }) => (
+              <div key={label} className={`flex flex-col items-center rounded-2xl ${color} p-6 backdrop-blur border border-white/10`}>
+                <Icon className="h-8 w-8 text-white" />
+                <span className="mt-2 text-sm font-semibold">{label}</span>
+                <span className="text-xs text-white/60">{sub}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -183,6 +195,34 @@ function HomeBody({
         </div>
       </section>
 
+      {/* INFRASTRUCTURE / CHIFFRES CLÉS */}
+      <section className="bg-neutral-900 py-12 text-white dark:bg-black">
+        <div className="container-app">
+          <h2 className="text-center text-2xl font-bold">Infrastructure & chiffres clés</h2>
+          <p className="mx-auto mt-2 max-w-2xl text-center text-sm text-white/60">Source: camtel.cm — vérifié le 2026-05-15</p>
+          <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            {[
+              { v: '26+', l: 'Ans d’expérience' },
+              { v: '5M+', l: 'Clients' },
+              { v: '3 500+', l: 'Employés' },
+              { v: '10', l: 'Régions' },
+              { v: '20 000+ km', l: 'Fibre' },
+              { v: '1,7 Tbps', l: 'Capacité intl.' },
+            ].map((k) => (
+              <div key={k.l} className="rounded-xl bg-white/5 p-4 text-center ring-1 ring-white/10">
+                <p className="text-xl font-bold">{k.v}</p>
+                <p className="text-xs text-white/60">{k.l}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 text-center">
+            <Link to="/a-propos" className="text-sm font-medium text-white/80 hover:text-white hover:underline">
+              En savoir plus — À propos <ArrowRight className="ml-1 inline h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* TROUVER MA SOLUTION — assistant de recommandation (fonctionnalité existante) */}
       <section className="bg-primary-50 py-14 dark:bg-primary-950/40">
         <div className="container-app flex flex-col items-center gap-6 text-center">
@@ -264,7 +304,7 @@ function HomeBody({
         </div>
       </section>
 
-      {/* APPEL À L'ACTION FINAL — explore le catalogue / l'assistant */}
+      {/* ASSISTANCE CTA — spec Phase 4 */}
       <section className="container-app py-16">
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary-900 via-primary to-primary-600 px-6 py-12 text-center text-white sm:px-12 sm:py-16">
           <div aria-hidden className="pointer-events-none absolute inset-0">
@@ -278,6 +318,11 @@ function HomeBody({
               <Link to="/produits">
                 <Button size="lg" variant="secondary">
                   {t('home.ctaButton')} <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+              <Link to="/assistance">
+                <Button size="lg" variant="tertiary" className="border-white/40 text-white hover:bg-white/10">
+                  Assistance <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
               <Link to="/assistant">

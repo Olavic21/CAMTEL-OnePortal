@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import type { Permission } from '../permissions';
 import type { UserRole } from '@/shared/types';
 import { useTranslation } from 'react-i18next';
+import { AppLoading } from '@/app/layout/AppLoading';
 
 // Garde de route admin (section 10.1). Redirige vers /admin/login si non
 // authentifie, ou affiche un message si le role/la permission est insuffisant.
@@ -25,7 +26,7 @@ export function RequireAuth({
   const location = useLocation();
 
   if (isLoading) {
-    return <div className="flex h-screen items-center justify-center text-neutral-400">{t('common.loading')}</div>;
+    return <AppLoading />;
   }
 
   if (!isAuthenticated) {

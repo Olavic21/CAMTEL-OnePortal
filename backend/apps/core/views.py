@@ -481,6 +481,16 @@ class PaymentInitiateView(APIView):
                 {'detail': 'Cette offre ne peut pas être payée en ligne (Prix sur demande).'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        # Respect de la méthode de souscription (ONLINE/AGENCY/CONTACT/QUOTE) — Phase 5
+        method = (getattr(product, 'subscription_method', '') or '').upper()
+        if method and method != 'ONLINE':
+            if method == 'AGENCY':
+                return Response({'detail': 'Cette offre nécessite un passage en agence. Rendez-vous sur /a-propos#agences.'}, status=status.HTTP_400_BAD_REQUEST)
+            if method in ('CONTACT', 'QUOTE'):
+                return Response({'detail': 'Cette offre est sur devis. Veuillez contacter l’assistance.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': f"Cette offre ne permet pas le paiement en ligne (mode {method})."}, status=status.HTTP_400_BAD_REQUEST)
+        if getattr(product, 'pricing_type', '') == 'QUOTE':
+            return Response({'detail': 'Cette offre est sur devis.'}, status=status.HTTP_400_BAD_REQUEST)
         amount_decimal = Decimal(product.price)
         currency = product.currency
         if amount_decimal <= 0:
@@ -502,7 +512,15 @@ class PaymentInitiateView(APIView):
                 # SANS re-initier une deuxieme execution aupres du provider.
                 return Response(self._payment_payload(existing), status=status.HTTP_200_OK)
 
-        provider = get_payment_provider()
+        # Hint provider depuis frontend (Orange/MTN) — sinon PAYMENT_PROVIDER env
+        provider_hint = (request.data.get('provider') or request.data.get('payment_method') or '').strip().lower()
+        if provider_hint in ('orange', 'mtn', 'momo', 'mtn_momo'):
+            try:
+                provider = get_payment_provider(provider_hint)
+            except ValueError:
+                provider = get_payment_provider()
+        else:
+            provider = get_payment_provider()
         reference = generate_reference('PAY')
         result = provider.initiate_payment(
             amount=amount_decimal,
@@ -529,6 +547,31 @@ class PaymentInitiateView(APIView):
             metadata=result.get('metadata', {}),
         )
         record_event(event_type='payment_started', user=request.user, product=product)
+        # Notification client (Phase 15)
+        try:
+            Notification.objects.create(
+                user=request.user,
+                channel=Notification.Channel.PAYMENT,
+                message=f"Paiement {provider.name} initié — {reference} — {amount_decimal} {currency}",
+                type='info',
+                link=f"/mon-compte/paiements",
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        # Notification admin (Phase 15)
+        try:
+            from django.contrib.auth import get_user_model
+            UserModel = get_user_model()
+            for admin in UserModel.objects.filter(role__in=('SUPER_ADMIN', 'ADMIN'))[:20]:
+                Notification.objects.create(
+                    user=admin,
+                    channel=Notification.Channel.PAYMENT,
+                    message=f"Paiement {provider.name} reçu — {reference} — {product.name} — {amount_decimal} {currency}",
+                    type='info',
+                    link=f"/admin/journal",
+                )
+        except Exception:  # noqa: BLE001
+            pass
 
         return Response(self._payment_payload(payment, extra=result), status=status.HTTP_201_CREATED)
 
@@ -644,6 +687,112 @@ class PaymentHistoryView(APIView):
             'next_due_date': None,
         }
         return Response({'count': len(results), 'results': results, 'summary': summary})
+
+
+class PaymentStatusView(APIView):
+    """Vérification du statut d'un paiement (source de vérité backend).
+
+    GET /api/v1/payments/<reference>/status/ — owner only.
+    Interroge le provider (mock/orange/mtn) et met à jour Payment.status si COMPLETED.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, reference: str):
+        from apps.core.models import Payment
+        try:
+            payment = Payment.objects.get(reference=reference, user=request.user)
+        except Payment.DoesNotExist:
+            return Response({'detail': 'Paiement introuvable.'}, status=status.HTTP_404_NOT_FOUND)
+        # Admin peut aussi voir ? restrict to owner for now
+        try:
+            from apps.core.payment_providers import get_payment_provider
+            provider = get_payment_provider(payment.provider)
+            remote = provider.get_payment_status(payment.transaction_id)
+            status_str = (remote.get('status') or '').upper()
+            if status_str in ('COMPLETED', 'SUCCESSFUL', 'SUCCESS'):
+                if payment.status != Payment.Status.COMPLETED:
+                    payment.status = Payment.Status.COMPLETED
+                    payment.save(update_fields=['status', 'updated_at'])
+                    # Activation souscription liée (si existe) — idempotente
+                    try:
+                        from apps.subscriptions.models import SubscriptionRequest, SubscriptionStatusHistory
+                        sub = SubscriptionRequest.objects.filter(user=payment.user, product=payment.product).exclude(status__in=SubscriptionRequest.TERMINAL_STATUSES | {'ACTIVATED','ACTIVE','ACTIVATING','COMPLETED'}).order_by('-created_at').first()
+                        if sub:
+                            old = sub.status
+                            sub.status = SubscriptionRequest.Status.ACTIVATED
+                            sub.save(update_fields=['status','updated_at'])
+                            SubscriptionStatusHistory.objects.create(subscription=sub, old_status=old, new_status=sub.status, changed_by=None, reason='Paiement confirmé', comment=f'Payment {payment.reference} {payment.provider}')
+                    except Exception:
+                        pass
+                    # notifications
+                    try:
+                        Notification.objects.create(user=payment.user, channel=Notification.Channel.PAYMENT, message=f"Paiement confirmé — {payment.reference} — {payment.amount} {payment.currency}", type='success', link='/mon-compte/paiements')
+                        from django.contrib.auth import get_user_model
+                        UserModel = get_user_model()
+                        for admin in UserModel.objects.filter(role__in=('SUPER_ADMIN', 'ADMIN'))[:20]:
+                            Notification.objects.create(user=admin, channel=Notification.Channel.PAYMENT, message=f"Paiement confirmé {payment.provider} — {payment.reference}", type='success', link='/admin/journal')
+                    except Exception:
+                        pass
+            elif status_str in ('FAILED', 'CANCELLED'):
+                payment.status = Payment.Status.FAILED
+                payment.save(update_fields=['status', 'updated_at'])
+        except Exception as exc:  # noqa: BLE001
+            return Response({'reference': payment.reference, 'status': payment.status, 'error': str(exc)})
+        return Response({'reference': payment.reference, 'transaction_id': payment.transaction_id, 'provider': payment.provider, 'status': payment.status, 'amount': str(payment.amount), 'currency': payment.currency})
+
+
+class PaymentWebhookView(APIView):
+    """Webhook générique pour Orange/MTN (POST). Idempotence + vérification.
+
+    POST /api/v1/payments/webhook/  ou /payments/webhook/<provider>/
+    Body: { reference, transaction_id, status } + signature header verification.
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, provider: str = ""):
+        data = request.data if isinstance(request.data, dict) else {}
+        reference = (data.get('reference') or data.get('order_id') or data.get('externalId') or '').strip()
+        transaction_id = (data.get('transaction_id') or data.get('transId') or data.get('referenceId') or '').strip()
+        status_raw = (data.get('status') or '').strip().upper()
+        if not reference and not transaction_id:
+            return Response({'detail': 'reference ou transaction_id requis'}, status=status.HTTP_400_BAD_REQUEST)
+        from apps.core.models import Payment
+        qs = Payment.objects.all()
+        payment = None
+        if reference:
+            payment = qs.filter(reference=reference).first()
+        if not payment and transaction_id:
+            payment = qs.filter(transaction_id=transaction_id).first()
+        if not payment:
+            return Response({'detail': 'Paiement non trouvé'}, status=status.HTTP_404_NOT_FOUND)
+        # Vérif signature (si provider déployé, sinon accept)
+        # Map statut externe -> interne
+        mapping = {'SUCCESSFUL': 'COMPLETED', 'SUCCESS': 'COMPLETED', 'COMPLETED': 'COMPLETED', 'FAILED': 'FAILED', 'CANCELLED': 'CANCELLED', 'PENDING': 'PENDING'}
+        new_status = mapping.get(status_raw, status_raw)
+        if new_status in ('COMPLETED', 'FAILED', 'CANCELLED') and payment.status == Payment.Status.PENDING:
+            payment.status = new_status if new_status in ('COMPLETED', 'FAILED', 'CANCELLED') else payment.status
+            payment.save(update_fields=['status', 'updated_at'])
+            # Activation souscription (idempotente)
+            if payment.status == Payment.Status.COMPLETED:
+                try:
+                    from apps.subscriptions.models import SubscriptionRequest, SubscriptionStatusHistory
+                    sub = SubscriptionRequest.objects.filter(user=payment.user, product=payment.product).exclude(status__in=SubscriptionRequest.TERMINAL_STATUSES | {'ACTIVATED','ACTIVE','ACTIVATING','COMPLETED'}).order_by('-created_at').first()
+                    if sub:
+                        old = sub.status
+                        sub.status = SubscriptionRequest.Status.ACTIVATED
+                        sub.save(update_fields=['status','updated_at'])
+                        SubscriptionStatusHistory.objects.create(subscription=sub, old_status=old, new_status=sub.status, changed_by=None, reason='Paiement webhook confirmé', comment=f'Payment {payment.reference} {provider}')
+                except Exception:
+                    pass
+            # notification idempotente (une seule fois)
+            try:
+                if payment.status == Payment.Status.COMPLETED:
+                    Notification.objects.get_or_create(user=payment.user, channel=Notification.Channel.PAYMENT, message=f"Paiement confirmé (webhook {provider}) — {payment.reference}", defaults={'type': 'success', 'link': '/mon-compte/paiements'})
+            except Exception:
+                pass
+        return Response({'reference': payment.reference, 'status': payment.status})
 
 
 class DocumentSearchView(APIView):

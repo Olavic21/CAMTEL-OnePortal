@@ -26,6 +26,15 @@ function toPaginated(results: User[]): Paginated<User> {
 // passent par mockAuthStore (localStorage) plutot que par le reseau, pour
 // que le flux Super Admin -> creation de comptes -> connexion individuelle
 // soit reellement testable sans backend (voir useAuth.tsx).
+export interface RoleMeta {
+  code: string;
+  internal: string;
+  label: string;
+  count: number;
+  can_access_backoffice: boolean;
+  is_privileged: boolean;
+}
+
 export const usersApi = {
   list: (): Promise<Paginated<User>> => {
     if (DEMO_MODE) return Promise.resolve(toPaginated(mockAuthStore.list()));
@@ -56,6 +65,31 @@ export const usersApi = {
       return Promise.resolve(updated);
     }
     return httpClient.patch<User>(`/users/${id}/`, payload).then((r) => r.data);
+  },
+
+  updateRole: (id: number, role: UserRole): Promise<User> => {
+    if (DEMO_MODE) {
+      const updated = mockAuthStore.update(id, { role });
+      if (!updated) return Promise.reject(new Error('Utilisateur introuvable'));
+      return Promise.resolve(updated);
+    }
+    return httpClient.patch<User>(`/users/${id}/role/`, { role }).then((r) => r.data);
+  },
+
+  roles: (): Promise<{ roles: RoleMeta[] }> => {
+    if (DEMO_MODE) {
+      const counts: Record<string, number> = {};
+      mockAuthStore.list().forEach((u) => { counts[u.role] = (counts[u.role] ?? 0) + 1; });
+      const roles: RoleMeta[] = ([
+        { code: 'super_admin', internal: 'SUPER_ADMIN', label: 'Super Admin', can_access_backoffice: true, is_privileged: true },
+        { code: 'admin', internal: 'ADMIN', label: 'Admin', can_access_backoffice: true, is_privileged: true },
+        { code: 'product_manager', internal: 'PRODUCT_MANAGER', label: 'Product Manager', can_access_backoffice: true, is_privileged: false },
+        { code: 'editor', internal: 'EDITOR', label: 'Editor', can_access_backoffice: true, is_privileged: false },
+        { code: 'customer', internal: 'CUSTOMER', label: 'Customer', can_access_backoffice: false, is_privileged: false },
+      ] as RoleMeta[]).map((r) => ({ ...r, count: counts[r.code] ?? 0 }));
+      return Promise.resolve({ roles });
+    }
+    return httpClient.get<{ roles: RoleMeta[] }>('/roles/').then((r) => r.data);
   },
 
   remove: (id: number): Promise<void> => {

@@ -69,7 +69,10 @@ const ClientNotificationsPage = lazy(() => import('@/features/notifications/page
 
 // Univers de services (cahier des charges section 4) : Fixes / Mobiles /
 // Transport / Data Center. Un template commun ServicePage rend les quatre.
+const ServicesPage = lazy(() => import('@/features/services/pages/ServicesPage'));
 const ServicePage = lazy(() => import('@/features/services/pages/ServicePage'));
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const AssistancePage = lazy(() => import('./pages/AssistancePage'));
 const SearchPage = lazy(() => import('@/features/search/pages/SearchPage'));
 const FindSolutionPage = lazy(() => import('@/features/find-solution/pages/FindSolutionPage'));
 // L'API versionnee cote backend (/api/v1/) n'a pas d'impact ici. /admin/login et /inscription
@@ -102,16 +105,20 @@ export function AppRouter() {
             <Route element={<PublicLayout />}>
               <Route path="/" element={<HomePage />} />
 
-              {/* Univers de services (section 4) : FIXES / MOBILES / TRANSPORT / DATA_CENTER */}
+              {/* Phase 1/2: nouvelle navigation — Services regroupe les 4 univers */}
+              <Route path="/services" element={<ServicesPage />} />
               <Route path="/services/:serviceSlug" element={<ServicePage />} />
+              <Route path="/a-propos" element={<AboutPage />} />
+              <Route path="/assistance" element={<AssistancePage />} />
 
               {/* Recherche globale et assistant guide (sections 12 et 14) */}
               <Route path="/recherche" element={<SearchPage />} />
               <Route path="/verifier-eligibilite" element={<EligibilityPage />} />
                 <Route path="/trouver-une-solution" element={<FindSolutionPage />} />
 
-              {/* Catalogue et produits */}
+              {/* Catalogue et produits — /catalogue alias vers /produits (Phase 6) */}
               <Route path="/produits" element={<ProductListPage />} />
+              <Route path="/catalogue" element={<ProductListPage />} />
               <Route path="/produits/comparateur" element={<ProductComparePage />} />
               <Route path="/produits/:slug" element={<ProductDetailPage />} />
               <Route path="/produits/:slug/souscrire" element={<SubscriptionPage />} />

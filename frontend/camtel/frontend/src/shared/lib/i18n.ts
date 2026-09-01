@@ -10,6 +10,9 @@ const resources = {
       nav: {
         home: 'Accueil',
         services: 'Services',
+        catalogue: 'Catalogue',
+        about: 'À propos',
+        assistance: 'Assistance',
         secondary: 'Explorer',
         products: 'Produits',
         news: 'Actualités',
@@ -22,6 +25,27 @@ const resources = {
         logout: 'Se déconnecter',
         myAccount: 'Mon compte',
         assistant: 'Assistant',
+      },
+      servicesPage: {
+        heroTitle: 'Nos services',
+        heroSubtitle: 'CAMTEL propose une gamme complète de solutions télécom et numériques — Fixes, Mobiles, Transport et Data Center.',
+      },
+      about: {
+        searchAgency: 'Rechercher une agence (ville, région)...',
+      },
+      assistance: {
+        cat: {
+          account: 'Compte',
+          mobile: 'Mobile',
+          fixe: 'Fixe',
+          fibre: 'Fibre',
+          transport: 'Transport',
+          datacenter: 'Data Center',
+          payments: 'Paiements',
+          subscriptions: 'Souscriptions',
+          catalog: 'Catalogue',
+          technical: 'Problèmes techniques',
+        },
       },
       chatbot: {
         title: 'Assistant CAMTEL',
@@ -865,6 +889,9 @@ const resources = {
       nav: {
         home: 'Home',
         services: 'Services',
+        catalogue: 'Catalog',
+        about: 'About',
+        assistance: 'Help',
         secondary: 'Explore',
         products: 'Products',
         news: 'News',
@@ -877,6 +904,27 @@ const resources = {
         logout: 'Log out',
         myAccount: 'My account',
         assistant: 'Assistant',
+      },
+      servicesPage: {
+        heroTitle: 'Our services',
+        heroSubtitle: 'CAMTEL offers a complete range of telecom and digital solutions — Fixed, Mobile, Transport and Data Center.',
+      },
+      about: {
+        searchAgency: 'Search an agency (city, region)...',
+      },
+      assistance: {
+        cat: {
+          account: 'Account',
+          mobile: 'Mobile',
+          fixe: 'Landline',
+          fibre: 'Fiber',
+          transport: 'Transport',
+          datacenter: 'Data Center',
+          payments: 'Payments',
+          subscriptions: 'Subscriptions',
+          catalog: 'Catalog',
+          technical: 'Technical issues',
+        },
       },
       chatbot: {
         title: 'CAMTEL Assistant',

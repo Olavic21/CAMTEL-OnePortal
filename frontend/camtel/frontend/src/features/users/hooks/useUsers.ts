@@ -1,10 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usersApi, type UserPayload } from '../api/usersApi';
 import { queryKeys } from '@/shared/lib/queryClient';
-import type { User } from '@/shared/types';
+import type { User, UserRole } from '@/shared/types';
 
 export function useUsers() {
   return useQuery({ queryKey: queryKeys.users.all, queryFn: usersApi.list });
+}
+
+export function useRoles() {
+  return useQuery({ queryKey: [...queryKeys.users.all, 'roles'], queryFn: usersApi.roles });
 }
 
 export function useCreateUser() {
@@ -20,6 +24,14 @@ export function useUpdateUser() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: Partial<Pick<User, 'role' | 'is_active'>> }) =>
       usersApi.update(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.users.all }),
+  });
+}
+
+export function useUpdateRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, role }: { id: number; role: UserRole }) => usersApi.updateRole(id, role),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.users.all }),
   });
 }

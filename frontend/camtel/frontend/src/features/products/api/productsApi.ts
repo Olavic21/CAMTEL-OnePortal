@@ -342,6 +342,14 @@ export interface CatalogApiQuery {
   page?: number;
   page_size?: number;
   ordering?: string;
+  technology?: string;
+  billing_period?: string;
+  offer_type?: string;
+  brand?: string;
+  pricing_type?: string;
+  availability?: string;
+  min_price?: string;
+  max_price?: string;
 }
 
 export interface PaginatedProductsV2 {
@@ -373,7 +381,7 @@ function toServiceSlugParam(service: string | undefined): string | undefined {
   return SERVICE_ENUM_TO_SLUG[service] ?? service;
 }
 
-/** Requete catalogue paginee : GET /api/v1/products/?service=&segment=&search= */
+/** Requete catalogue paginee : GET /api/v1/products/?service=&segment=&search= (Phase 6: tous les filtres métier) */
 export async function listCatalogProducts(
   query: CatalogApiQuery = {},
 ): Promise<PaginatedProductsV2> {
@@ -385,6 +393,14 @@ export async function listCatalogProducts(
       page: query.page,
       page_size: query.page_size,
       ordering: query.ordering,
+      technology: query.technology || undefined,
+      billing_period: query.billing_period || undefined,
+      offer_type: query.offer_type || undefined,
+      brand: query.brand || undefined,
+      pricing_type: query.pricing_type || undefined,
+      availability: query.availability || undefined,
+      min_price: query.min_price || undefined,
+      max_price: query.max_price || undefined,
     },
   });
   return {

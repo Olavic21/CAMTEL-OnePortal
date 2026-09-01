@@ -10,7 +10,7 @@ import { EmptyState } from '@/shared/components/EmptyState';
 import { Breadcrumbs } from '@/shared/components/Breadcrumbs';
 import { useTranslation } from 'react-i18next';
 
-type SortValue = '' | 'price' | '-price' | 'name' | 'availability';
+type SortValue = '' | 'price' | '-price' | 'name' | '-name' | '-created_at' | 'availability';
 
 export default function ProductListPage() {
   const { t } = useTranslation();
@@ -22,16 +22,34 @@ export default function ProductListPage() {
     segment: searchParams.get('segment') ?? '',
     availability: searchParams.get('availability') ?? '',
     search: searchParams.get('search') ?? '',
+    technology: searchParams.get('technology') ?? '',
+    billing_period: searchParams.get('billing_period') ?? '',
+    offer_type: searchParams.get('offer_type') ?? '',
+    brand: searchParams.get('brand') ?? '',
+    pricing_type: searchParams.get('pricing_type') ?? '',
+    min_price: searchParams.get('min_price') ?? '',
+    max_price: searchParams.get('max_price') ?? '',
   };
 
+  const apiOrdering = orderBy === 'availability' ? undefined : orderBy || undefined;
   const { data, isLoading } = useCatalog({
     service: filters.service || undefined,
     segment: filters.segment || undefined,
     search: filters.search || undefined,
+    technology: filters.technology || undefined,
+    billing_period: filters.billing_period || undefined,
+    offer_type: filters.offer_type || undefined,
+    brand: filters.brand || undefined,
+    pricing_type: filters.pricing_type || undefined,
+    availability: filters.availability || undefined,
+    min_price: filters.min_price || undefined,
+    max_price: filters.max_price || undefined,
     page,
+    page_size: 12,
+    ordering: apiOrdering,
   });
 
-  const results = sortProducts(data?.results ?? [], orderBy);
+  const results = orderBy === 'availability' ? sortProducts(data?.results ?? [], orderBy) : data?.results ?? [];
 
   function updateFilters(next: ProductFilterState) {
     setPage(1);
@@ -41,6 +59,13 @@ export default function ProductListPage() {
     if (next.segment) params.set('segment', next.segment);
     if (next.availability) params.set('availability', next.availability);
     if (next.search) params.set('search', next.search);
+    if (next.technology) params.set('technology', next.technology);
+    if (next.billing_period) params.set('billing_period', next.billing_period);
+    if (next.offer_type) params.set('offer_type', next.offer_type);
+    if (next.brand) params.set('brand', next.brand);
+    if (next.pricing_type) params.set('pricing_type', next.pricing_type);
+    if (next.min_price) params.set('min_price', next.min_price);
+    if (next.max_price) params.set('max_price', next.max_price);
     setSearchParams(params);
   }
 
@@ -59,7 +84,7 @@ export default function ProductListPage() {
           <p className="mt-1 text-neutral-500 dark:text-neutral-400">{t('products.catalogSubtitle')}</p>
         </div>
         <Link
-          to="/compare"
+          to="/produits/comparateur"
           className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline dark:text-primary-300"
         >
           <Scale className="h-4 w-4" /> {t('products.compareOffers')}

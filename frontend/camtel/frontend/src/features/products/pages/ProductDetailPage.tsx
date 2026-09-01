@@ -43,6 +43,8 @@ interface NormalizedProduct {
   shortDescription: string;
   description: string;
   offerType?: string;
+  ctaType: 'subscribe' | 'agency' | 'quote' | 'eligibility';
+  subscriptionMethod: string;
   faqs: NonNullable<Product['faqs']>;
   images?: Product['images'];
 }
@@ -50,6 +52,8 @@ interface NormalizedProduct {
 /** Normalise un produit des deux modeles vers un objet unique pour la page. */
 function normalizeProduct(product: AnyProduct): NormalizedProduct {
   if (isV2(product)) {
+    // V2: ctaType absent → déduit de pricing (BACKEND est la source ultime, mais fallback utile)
+    const cta: NormalizedProduct['ctaType'] = product.pricing.type === 'ON_QUOTE' ? 'quote' : 'subscribe';
     return {
       id: product.id,
       name: product.name,
@@ -67,11 +71,14 @@ function normalizeProduct(product: AnyProduct): NormalizedProduct {
       shortDescription: product.shortDescription,
       description: product.description,
       offerType: product.service,
+      ctaType: cta,
+      subscriptionMethod: 'ONLINE',
       faqs: [] as never[],
       images: undefined as Product['images'] | undefined,
     };
   }
   const p = product as Product;
+  const cta = (p.cta_type as NormalizedProduct['ctaType']) ?? 'subscribe';
   return {
     id: p.id,
     name: p.name,
@@ -100,6 +107,8 @@ function normalizeProduct(product: AnyProduct): NormalizedProduct {
     shortDescription: p.short_description,
     description: p.description,
     offerType: p.offer_type ?? p.service_type ?? '',
+    ctaType: cta,
+    subscriptionMethod: p.subscription_method ?? '',
     faqs: p.faqs ?? [],
     images: p.images,
   };
@@ -215,12 +224,36 @@ export default function ProductDetailPage() {
             <PriceDisplay pricing={product.pricing} variant="large" withSource source={product.source} />
           </div>
 
+          {/* CTA selon subscription_method / cta_type — Phase 17: ONLINE→Payer, AGENCY→Agence, QUOTE→Devis, FIBER→Éligibilité */}
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link to={`/produits/${product.slug}/souscrire`}>
-              <Button size="lg">
-                <UserPlus className="h-4 w-4" /> {t('products.subscribeCta')}
-              </Button>
-            </Link>
+            {product.ctaType === 'subscribe' && (
+              <Link to={`/produits/${product.slug}/souscrire`}>
+                <Button size="lg">
+                  <UserPlus className="h-4 w-4" /> {t('products.subscribeCta')}
+                </Button>
+              </Link>
+            )}
+            {product.ctaType === 'eligibility' && (
+              <Link to={`/verifier-eligibilite?slug=${product.slug}`}>
+                <Button size="lg">
+                  <Compass className="h-4 w-4" /> {t('products.eligibilityCta')}
+                </Button>
+              </Link>
+            )}
+            {product.ctaType === 'agency' && (
+              <Link to="/a-propos#agences">
+                <Button size="lg">
+                  <PhoneCall className="h-4 w-4" /> {t('products.agencyCta')}
+                </Button>
+              </Link>
+            )}
+            {product.ctaType === 'quote' && (
+              <Link to={`/contact?product=${product.slug}`}>
+                <Button size="lg">
+                  <PhoneCall className="h-4 w-4" /> {t('products.quoteCta')}
+                </Button>
+              </Link>
+            )}
             <Link to="/contact">
               <Button size="lg" variant="tertiary">
                 <PhoneCall className="h-4 w-4" /> {t('products.contactCta')}
@@ -232,6 +265,13 @@ export default function ProductDetailPage() {
               </Button>
             </Link>
           </div>
+          {product.ctaType !== 'subscribe' && (
+            <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">
+              {product.ctaType === 'agency' && 'Cette offre nécessite un passage en agence.'}
+              {product.ctaType === 'quote' && 'Prix sur demande — contactez-nous pour un devis.'}
+              {product.ctaType === 'eligibility' && 'Vérifiez votre éligibilité avant souscription.'}
+            </p>
+          )}
 
           {product.source && (
             <p className="mt-4 flex flex-wrap items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">

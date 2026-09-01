@@ -8,6 +8,14 @@ export interface CatalogQuery {
   page?: number;
   page_size?: number;
   ordering?: string;
+  technology?: string;
+  billing_period?: string;
+  offer_type?: string;
+  brand?: string;
+  pricing_type?: string;
+  availability?: string;
+  min_price?: string;
+  max_price?: string;
 }
 
 /** Reponse catalogue paginee (contrat DRF + mapping ProductV2). */

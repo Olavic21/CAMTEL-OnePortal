@@ -21,68 +21,33 @@ from django.utils import timezone
 from apps.products.models import Product
 
 
-class PaymentProvider:
-    """Interface paiement V2."""
-
-    name = "base"
-
-    def initiate_payment(
-        self,
-        *,
-        amount: Decimal,
-        currency: str,
-        customer: Dict[str, Any],
-        reference: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        raise NotImplementedError
-
-    def get_payment_status(self, transaction_id: str) -> Dict[str, Any]:
-        raise NotImplementedError
-
-
-class MockPaymentProvider(PaymentProvider):
-    """Provider paiement déterministe pour dev/test/démo."""
-
-    name = "mock"
-
-    def initiate_payment(
-        self,
-        *,
-        amount: Decimal,
-        currency: str,
-        customer: Dict[str, Any],
-        reference: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        seed = f"{reference}:{amount}:{currency}:{customer.get('email', '')}"
-        transaction_id = f"PAY-{hashlib.sha1(seed.encode('utf-8')).hexdigest()[:12].upper()}"
-        return {
-            "provider": self.name,
-            "transaction_id": transaction_id,
-            "reference": reference,
-            "status": "PENDING",
-            "amount": str(amount),
-            "currency": currency,
-            "payment_url": f"mock://payments/{transaction_id}",
-            "metadata": metadata or {},
-            "created_at": timezone.now().isoformat(),
-        }
-
-    def get_payment_status(self, transaction_id: str) -> Dict[str, Any]:
-        return {
-            "provider": self.name,
-            "transaction_id": transaction_id,
-            "status": "PENDING",
-            "message": "Paiement mock en attente de confirmation.",
-        }
-
-
-def get_payment_provider(name: Optional[str] = None) -> PaymentProvider:
-    provider_name = (name or getattr(settings, "PAYMENT_PROVIDER", "mock") or "mock").lower()
-    if provider_name == "mock":
-        return MockPaymentProvider()
-    raise ValueError(f"Payment provider non configure: {provider_name}")
+# Re-export payment providers (Phase 14) — source of truth is payment_providers.py
+try:
+    from apps.core.payment_providers import (  # noqa: F401
+        PaymentProvider,
+        MockPaymentProvider,
+        OrangeMoneyProvider,
+        MTNMoMoProvider,
+        get_payment_provider,
+    )
+except ImportError:
+    # Fallback si module absent (tests isolés)
+    class PaymentProvider:  # type: ignore
+        name = "base"
+        def initiate_payment(self, *, amount, currency, customer, reference, metadata=None): raise NotImplementedError
+        def get_payment_status(self, transaction_id): raise NotImplementedError
+    class MockPaymentProvider(PaymentProvider):  # type: ignore
+        name = "mock"
+        def initiate_payment(self, *, amount, currency, customer, reference, metadata=None):
+            seed = f"{reference}:{amount}:{currency}:{customer.get('email','')}"
+            transaction_id = f"PAY-{hashlib.sha1(seed.encode()).hexdigest()[:12].upper()}"
+            return {"provider": self.name, "transaction_id": transaction_id, "reference": reference, "status": "PENDING", "amount": str(amount), "currency": currency, "payment_url": f"mock://payments/{transaction_id}", "metadata": metadata or {}, "created_at": timezone.now().isoformat()}
+        def get_payment_status(self, transaction_id): return {"provider": self.name, "transaction_id": transaction_id, "status": "PENDING"}
+    def get_payment_provider(name=None):  # type: ignore
+        from django.conf import settings as _s
+        pn = (name or getattr(_s, "PAYMENT_PROVIDER", "mock") or "mock").lower()
+        if pn == "mock": return MockPaymentProvider()
+        raise ValueError(f"Payment provider non configure: {pn}")
 
 
 @dataclass

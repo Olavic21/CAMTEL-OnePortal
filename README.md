@@ -1,165 +1,445 @@
-
 # CAMTEL-OnePortal
 
-# CAMTEL OnePortal â€” Guide de dÃ©marrage complet
+Plateforme full-stack **Django / Django REST Framework + React / TypeScript** pour le portail produits et services CAMTEL : catalogue FIXES / MOBILES / TRANSPORT / DATA CENTER, comparateur, assistance, espace client, back-office et paiements Orange Money / MTN Mobile Money.
 
-Plateforme full-stack Django/DRF + React/TypeScript pour la gestion des produits, actualitÃ©s, promotions et espace client CAMTEL.
+> Stack : Python 3.12, Django 6, DRF 3.17, SimpleJWT, PostgreSQL 16 / SQLite, React 18, TypeScript 5, Vite 8, Tailwind 3, React Query 5, Framer Motion, i18next, Docker / Nginx.
 
-## Stack
+---
 
-| Couche | Technologies |
-|---|---|
-| Backend | Python 3.12, Django 6, DRF, JWT, PostgreSQL/SQLite |
-| Frontend | React 18, TypeScript, Vite, TailwindCSS, React Query |
-| DevOps | Docker, Nginx, GitHub Actions, PostgreSQL 16 |
+## 1. Architecture
 
-## Structure
-
-```text
+```
 CAMTEL-OnePortal/
-â”œâ”€â”€ backend/                 # API Django/DRF
-â”‚   â”œâ”€â”€ apps/                # categories, products, news, partners, core...
-â”‚   â””â”€â”€ config/settings/     # base.py, dev.py, prod.py
-â”œâ”€â”€ frontend/camtel/frontend # SPA React
-â”œâ”€â”€ nginx/                   # Reverse proxy
-â”œâ”€â”€ scripts/                 # setup.ps1, backup.sh, restore.sh
-â”œâ”€â”€ docs/                    # Documentation
-â”œâ”€â”€ docker-compose.yml       # Dev complet (PostgreSQL + backend + frontend + nginx)
-â””â”€â”€ docker-compose.staging.yml
+├── backend/
+│   ├── apps/
+│   │   ├── categories/      # Catégories catalogue
+│   │   ├── products/        # Service, Segment, Product, ProductImage, ProductFAQ, ProductSource
+│   │   ├── news/            # Actualités
+│   │   ├── promotions/      # Promotions
+│   │   ├── media/           # Médiathèque
+│   │   ├── contacts/        # Messages contact
+│   │   ├── subscriptions/   # Demandes de souscription (workflow)
+│   │   ├── partners/        # API partenaire (X-API-Key)
+│   │   ├── users/           # User custom + RBAC
+│   │   └── core/            # Payment, Notification, SupportTicket, Analytics, ActivityLog, providers
+│   ├── config/
+│   │   └── settings/        # base.py / dev.py / prod.py
+│   ├── manage.py
+│   └── media/               # Uploads (products/, news/)
+├── frontend/camtel/frontend/
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── layout/      # PublicHeader, PublicLayout, AdminLayout, AdminSidebar
+│   │   │   ├── pages/       # HomePage, AboutPage, AssistancePage
+│   │   │   └── router.tsx   # Routes publiques + back-office (lazy + RequireAuth)
+│   │   ├── features/        # products, services, payments, subscriptions, tickets, etc.
+│   │   └── shared/          # components, config/services, config/agencies, lib/axios, lib/i18n
+│   ├── public/
+│   │   ├── logo-new.png     # Source unique logo (pastille blanche)
+│   │   └── favicon.png
+│   └── vite.config.ts
+├── nginx/
+├── scripts/                 # setup.ps1, backup.sh, make_favicon.py, extract_official_pdf.py
+├── data/camtel_catalog/     # Snapshots catalogue officiel versionnés
+├── docker-compose.yml
+├── docker-compose.staging.yml
+└── .env.example
 ```
+
+**Flux** : `Browser (Vite) → Nginx → Django API (/api/v1/) → PostgreSQL` ; JWT access (mémoire) + refresh HttpOnly (`/api/v1/auth/`). Catalogue source de vérité = backend (jamais de données commerciales hardcodées frontend).
 
 ---
 
-## Setup en une commande (Windows)
+## 2. Prérequis
 
-Le script `scripts/setup.ps1` automatise toute la prÃ©paration (idempotent â€” relancer ne casse rien) :
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/setup.ps1            # complet (avec comptes demo)
-powershell -ExecutionPolicy Bypass -File scripts/setup.ps1 -SkipDemo  # sans seed demo
-```
-
-Il effectue, dans l'ordre : venv + dÃ©pendances backend â†’ migrations â† catalogue CAMTEL
-(`seed_camtel_data` + `validate_camtel_data` + `attach_official_images`) â† comptes demo
-(`seed_data`, dev uniquement) â† dÃ©pendances frontend (`npm install`).
-L'installation manuelle ci-dessous reste 100 % Ã©quivalente.
+- **Sans Docker** : Python 3.12+, Node 18+, PostgreSQL 16 (optionnel, SQLite par défaut), Git
+- **Avec Docker** : Docker Desktop 4+
+- **Optionnel** : `pip install google-generativeai` / `openai` / `ollama` pour chatbot LLM, `reportlab` pour export PDF
 
 ---
 
-## Option A â€” Lancement local (sans Docker)
+## 3. Installation
 
-### 1. Backend
+### 3.1 One-command (Windows, idempotent)
 
 ```powershell
-cd CAMTEL-OnePortal
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+powershell -ExecutionPolicy Bypass -File scripts/setup.ps1            # complet avec seed demo
+powershell -ExecutionPolicy Bypass -File scripts/setup.ps1 -SkipDemo  # sans demo
+```
+
+Effectue : venv + `pip install -r requirements.txt` → `migrate` → `seed_camtel_data` + `validate_camtel_data` + `attach_official_images` → `seed_data` (dev) → `npm install`.
+
+### 3.2 Manuelle — voir §5, §6, §12
+
+---
+
+## 4. Variables d'environnement
+
+Copier `.env.example` → `.env` (jamais commité). En production `SECRET_KEY` **50+ chars** obligatoire (`prod.py` refuse placeholder).
+
+### 4.1 Django / Base
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `SECRET_KEY` | Clé Django (prod obligatoire) | `django-insecure-dev-only...` |
+| `DJANGO_SETTINGS_MODULE` | `config.settings.dev` / `config.settings.prod` | `config.settings.dev` |
+| `DEBUG` | `True`/`False` | `True` |
+| `ALLOWED_HOSTS` | CSV FQDN | `localhost,127.0.0.1` |
+| `LANGUAGE_CODE` | `fr` | `fr` |
+| `TIME_ZONE` |  | `UTC` |
+| `SEED_DEMO_DATA` | Seed demo hors-dev (`--force` sinon) | `True` dev / `False` prod |
+
+### 4.2 Base de données
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `DB_NAME` | Nom DB ou chemin SQLite | `backend/db.sqlite3` |
+| `DB_USER` | PG user |  |
+| `DB_PASSWORD` | PG password |  |
+| `DB_HOST` | vide → SQLite, sinon PostgreSQL |  |
+| `DB_PORT` |  | `5432` |
+
+### 4.3 API / Frontend
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `VITE_API_BASE_URL` | URL API frontend | `/api/v1` |
+| `VITE_DEMO_MODE` | `true` désactive API | `false` |
+| `CORS_ALLOWED_ORIGINS` | CSV origins |  |
+| `CORS_ALLOW_ALL_ORIGINS` | dev only | `True` |
+
+### 4.4 JWT / Cookies
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `JWT_ACCESS_LIFETIME_MINUTES` | Access | `30` |
+| `JWT_REFRESH_LIFETIME_DAYS` | Refresh | `7` |
+| `REFRESH_COOKIE_NAME` |  | `camtel_refresh` |
+| `REFRESH_COOKIE_SECURE` | `True` en prod | `False` |
+| `REFRESH_COOKIE_SAMESITE` | `Lax` / `Strict` / `None` | `Lax` |
+| `REFRESH_COOKIE_PATH` |  | `/api/v1/auth/` |
+
+### 4.5 Throttling / Media
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `THROTTLE_ANON_RATE` |  | `60/min` |
+| `THROTTLE_USER_RATE` |  | `600/min` |
+| `THROTTLE_PARTNER_RATE` |  | `1000/hour` |
+| `MEDIA_URL` / `MEDIA_ROOT` |  | `/media/` / `backend/media` |
+| `USE_S3_STORAGE`, `AWS_*` | S3 | `False` |
+
+### 4.6 Chatbot / LLM
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `CHATBOT_ENABLED` |  | `True` |
+| `CHATBOT_PROVIDER` | `none`/`mock`/`gemini`/`openai`/`ollama` | `none` |
+| `CHATBOT_MODEL` |  |  |
+| `CHATBOT_TEMPERATURE` |  | `0.3` |
+| `CHATBOT_MAX_TOKENS` |  | `512` |
+| `CHATBOT_TIMEOUT_SECONDS` | Hard timeout | `20` |
+| `GOOGLE_API_KEY` | Gemini |  |
+| `OPENAI_API_KEY` | OpenAI |  |
+| `OLLAMA_BASE_URL` |  | `http://localhost:11434` |
+
+### 4.7 Paiements — Orange Money / MTN MoMo (backend uniquement, jamais frontend)
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `PAYMENT_PROVIDER` | `mock` (dev) / `orange` / `mtn` | `mock` |
+| `PAYMENT_TIMEOUT_SECONDS` |  | `15` |
+| `ORANGE_MONEY_CLIENT_ID` | OAuth client ID |  |
+| `ORANGE_MONEY_CLIENT_SECRET` | OAuth secret |  |
+| `ORANGE_MONEY_BASE_URL` | `https://api.orange.com` (sandbox) | `https://api.orange.com` |
+| `ORANGE_MONEY_MERCHANT_KEY` | Merchant key |  |
+| `ORANGE_MONEY_RETURN_URL` | Retour user |  |
+| `ORANGE_MONEY_CANCEL_URL` | Annulation |  |
+| `ORANGE_MONEY_NOTIF_URL` | Webhook `https://domaine/api/v1/payments/webhook/orange/` |  |
+| `MTN_MOMO_SUBSCRIPTION_KEY` | Ocp-Apim-Subscription-Key |  |
+| `MTN_MOMO_API_USER` | API user |  |
+| `MTN_MOMO_API_KEY` | API key |  |
+| `MTN_MOMO_BASE_URL` | `https://sandbox.momodeveloper.mtn.com` | `https://sandbox.momodeveloper.mtn.com` |
+| `MTN_MOMO_TARGET_ENVIRONMENT` | `sandbox` / `production` | `sandbox` |
+| `MTN_MOMO_CALLBACK_URL` | `https://domaine/api/v1/payments/webhook/mtn/` |  |
+
+> **Règle** : secrets uniquement en env backend, jamais exposés via `VITE_*`.
+
+### 4.8 Email / Autres
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `EMAIL_PROVIDER` | `console` / `django` | `console` |
+| `EMAIL_BACKEND` |  | `console.EmailBackend` |
+| `DEFAULT_FROM_EMAIL` |  | `no-reply@oneportal.local` |
+| `DATA_FRESHNESS_DAYS` | OFFICIAL stale | `30` |
+| `CAMTEL_FIBER_ELIGIBILITY_URL` | API fibre |  |
+
+Voir `config/settings/base.py` pour la liste exhaustive.
+
+---
+
+## 5. Backend
+
+```powershell
 cd backend
+python -m venv .venv; .\.venv\Scripts\Activate.ps1  # ou source .venv/bin/activate
+pip install -r ../requirements.txt
 python manage.py migrate
-python manage.py seed_data
-python manage.py runserver
+python manage.py runserver  # http://127.0.0.1:8000/api/v1/  + /api/docs/
 ```
 
-Comptes crÃ©Ã©s par `seed_data` (donnÃ©es DEMO, **uniquement en dÃ©veloppement **) :
-- **superadmin** / CamtelAdmin2026!
-- **admin** / admin123
-- **editor** / editor123
+Swagger : `http://127.0.0.1:8000/api/docs/` (drf-spectacular). Health : `/api/v1/health/`, `/health/live/`, `/health/ready/`.
 
-API : http://127.0.0.1:8000/api/v1/  
-Swagger : http://127.0.0.1:8000/api/docs/
+---
 
-### 2. Frontend
+## 6. Frontend
 
 ```powershell
-cd frontend\camtel\frontend
+cd frontend/camtel/frontend
 npm install
-npm run dev
+npm run dev      # http://localhost:5173 (proxy /api → :8000, /media → :8000)
+npm run build    # tsc -b && vite build → dist/
+npm run preview
 ```
 
-Interface : http://localhost:5173
-
-Le proxy Vite redirige `/api` vers le backend Django.
+Vite `vite.config.ts` : `alias @ → src/`, proxy `/api` et `/media` vers Django en dev. Code-splitting : chaque page en chunk lazy (`App/router.tsx`).
 
 ---
 
-## Option B â€” Lancement Docker (recommandÃ©)
+## 7. Base de données
 
-PrÃ©requis : Docker Desktop
+- **Dev** : `DB_HOST` vide → SQLite `backend/db.sqlite3` (zéro config)
+- **Prod** : renseigner `DB_NAME/USER/PASSWORD/HOST/PORT` → PostgreSQL (GinIndex `search_vector` actif)
 
 ```powershell
-cd CAMTEL-OnePortal
-docker compose up --build
+# PostgreSQL
+$env:DB_NAME="camtel"; $env:DB_USER="camtel"; $env:DB_PASSWORD="camtel"; $env:DB_HOST="localhost"
+python manage.py migrate
+python manage.py reset_pg_sequences  # après import legacy si besoin
 ```
-
-Services :
-| Service | URL |
-|---|---|
-| Application (Nginx) | http://localhost:8080 |
-| API directe | http://localhost:8000/api/v1/ |
-| PostgreSQL | localhost:5432 (camtel/camtel) |
 
 ---
 
-## Option C â€” Environnement staging
+## 8. Import catalogue
 
-```powershell
-docker compose -f docker-compose.staging.yml up --build
-```
-
-Port : http://localhost:8081  
-Settings : `config.settings.prod`, logs JSON, DEBUG=False.
-
----
-
-## Tests
-
-### Backend (SQLite)
+Snapshot versionné `data/camtel_catalog/<date>/` (`services.json`, `segments.json`, `offers.json`, `sources.json`).
 
 ```powershell
 cd backend
-python manage.py test --verbosity 2
+python manage.py seed_camtel_data                 # snapshot le plus récent
+python manage.py seed_camtel_data --snapshot 2026-05-15
 ```
 
-### Backend (PostgreSQL)
+Idempotent (upsert sur `slug`/`code`). Ordre : Services (FIXES/MOBILES/TRANSPORT/DATA_CENTER) → Segments → Products (avec `specs`, `pricing_type`, `subscription_method`, `source_*`) → Sources.
+
+---
+
+## 9. Import images
+
+Images officielles **jamais hotlinkées** : téléchargées localement `backend/media/products/`.
 
 ```powershell
-$env:DB_NAME="camtel"; $env:DB_USER="camtel"; $env:DB_PASSWORD="camtel"; $env:DB_HOST="localhost"; $env:DB_PORT="5432"
-python manage.py migrate
-python manage.py test --verbosity 2
+python manage.py attach_official_images              # rattache media/products/pdf-import/ aux produits
+python manage.py attach_official_images --dry-run
 ```
 
-### Frontend
+Pour un nouveau PDF officiel :
 
 ```powershell
-cd frontend\camtel\frontend
-npm run test -- --run
-npm run build
+python scripts/extract_official_pdf.py chemin/vers/catalogue.pdf  # → extrait texte + images
+python manage.py seed_camtel_data --snapshot <date>
+python manage.py attach_official_images --min-size 64
 ```
 
 ---
 
-## FonctionnalitÃ©s clÃ©s
+## 10. Seed des données CAMTEL
 
-- **Authentification JWT** : `/api/v1/auth/login/` (access court + refresh rÃ©vocable au logout via `token_blacklist`)
-- **Internationalisation API** : en-tÃªte `Accept-Language: fr|en`
-- **Comparateur d'offres** : `GET /api/v1/products/compare/?ids=1,2,3`
-- **Catalogue filtrable et triable** : `GET /api/v1/products/?search=&category=<slug>&segment=<grand_public|entreprise>&offer_type=<INTERNET|FIBER|...>&product_type=<SERVICE_OFFER|PHYSICAL_PRODUCT>&availability=<ALL|REGION|ADDRESS_CHECK>&min_price=&max_price=&ordering=<price|-price|...>`
-- **Offers/Produits mÃ©tier (PHASE 2)** : champs `product_type`, `offer_type` (type tÃ©lÃ©com), `segment` (PARTICULIER/PROFESSIONNEL/ENTREPRISE/ADMINISTRATION), `billing_period`, `activation_fee`, `installation_fee`, `contract_duration`, `technology`, `availability`, `eligibility`, `features`, `benefits`, `terms`, `currency`. Le `stock` n'a de sens (`manage_stock`) que pour les `PHYSICAL_PRODUCT`.
-- **Workflow de souscription (PHASE 3)** : statuts `PENDING â†’ UNDER_REVIEW â†’ ADDITIONAL_INFO_REQUIRED â†’ APPROVED â†’ SCHEDULED â†’ ACTIVATED` (+ `REJECTED`/`CANCELLED`), numÃ©ro de demande humain `SUB-2026-000001`, historique tracÃ© `SubscriptionStatusHistory`, transitions `POST /api/v1/subscriptions/<id>/change-status/`, espace client `GET /api/v1/subscriptions/my-subscriptions/` et `GET /api/v1/subscriptions/my-dashboard/`.
-- **RBAC fin cÃ´tÃ© serveur** : la publication/suppression d'un produit est rÃ©servÃ©e aux Admin/Super Admin (Editeurs/Gestionnaires : crÃ©ation et modification uniquement)
-- **Gestion des mÃ©dias sÃ©curisÃ©e** : formats autorisÃ©s et taille max 10 Mo validÃ©s cÃ´tÃ© API
-- **API partenaire** : en-tÃªte `X-API-Key` + throttling dÃ©diÃ© par clÃ© (voir [docs/partner-api.md](docs/partner-api.md))
-- **Chatbot** : `POST /api/v1/chatbot/ask/` (voir [docs/oneportal-ai.md](docs/oneportal-ai.md))
-- **Healthcheck avancÃ©** : `GET /api/v1/health/`
+Comptes démo (**dev uniquement**, `is_demo=True`) :
 
-## SÃ©curitÃ© (PHASE 1)
+```powershell
+python manage.py seed_data              # superadmin/CamtelAdmin2026!  admin/admin123  editor/editor123
+python manage.py seed_data --force      # hors DEBUG
+```
 
-- `SECRET_KEY` **obligatoire** en production : l'application refuse de dÃ©marrer si elle est absente ou placeholder (`config.settings.prod`).
-- **Logout rÃ©vocable** : le refresh token est blacklistÃ© (revocation) ; durÃ©e de l'access issu de `JWT_ACCESS_LIFETIME_MINUTES` (dÃ©faut 30 min).
-- **Rate limiting** : login `5/min`, register `3/hour`, refresh/auth `20/min`, chatbot `30/min`, search `120/min`, contact `5/hour`, partenaire `1000/hour` (via env `THROTTLE_*`).
-- **Seed demo jamais automatique hors-dev** : la commande `seed_data` refuse de s'exÃ©cuter si `DEBUG=False`, sauf `SEED_DEMO_DATA=true` ou `--force` explicite. Docker compose ne lance le seed que si `SEED_DEMO_DATA=true`.
-- **Aucun secret dans le dÃ©pÃ´t** : `.env.example` ne contient que des placeholders ; les valeurs rÃ©elles passent par environnement. Les compositions `docker-compose.staging.yml` exigent `SECRET_KEY`/`DB_PASSWORD` (`${VAR:?}`).
+`seed_camtel_data` (catalogue) est indépendant de `seed_data` (users). `scripts/setup.ps1` lance les deux.
+
+---
+
+## 11. Validation des données
+
+```powershell
+python manage.py validate_camtel_data
+```
+
+Vérifie : chaque `Product` a `service` (taxo V4), `OFFICIAL` a `source_url` + `last_verified_at`, `price` NULL si `QUOTE` (jamais 0), `historical_since` si `HISTORICAL`, images présentes. Sortie `ERROR`/`WARNING` avec comptages.
+
+Qualité catalogue API : `GET /api/v1/products/data-quality/` et `GET /api/v1/catalog/quality/` (admin).
+
+---
+
+## 12. Lancement développement
+
+```powershell
+# Terminal 1 — backend
+cd backend; python manage.py migrate; python manage.py seed_camtel_data; python manage.py seed_data; python manage.py runserver
+
+# Terminal 2 — frontend
+cd frontend/camtel/frontend; npm install; npm run dev
+```
+
+URLs : Frontend `http://localhost:5173`, API `http://127.0.0.1:8000/api/v1/`, Admin `http://localhost:5173/admin` (login `superadmin`).
+
+Docker :
+
+```powershell
+docker compose up --build          # :8080 (Nginx) + :8000 + postgres
+docker compose -f docker-compose.staging.yml up --build  # :8081, config.prod, DEBUG=False, logs JSON
+```
+
+---
+
+## 13. Paiement Mock
+
+```powershell
+PAYMENT_PROVIDER=mock python manage.py runserver
+```
+
+- Frontend : Choix **Orange Money** / **MTN MoMo** (UI) → `POST /api/v1/payments/initiate/` (`product_id` + `Idempotency-Key`) → backend calcule `Product.price` (jamais frontend), crée `Payment PENDING` (`reference` PAY-YYYYMMDD-XXXX, `transaction_id` PAY-...), retourne `payment_url: mock://payments/...` + `simulation` flag.
+- Poll `GET /api/v1/payments/<reference>/status/` → reste `PENDING` en mock (frontend simule succès après 5 polls pour démo).
+- Aucune clé réelle requise, aucun encaissement.
+
+---
+
+## 14. Orange Money Sandbox
+
+1. Créer app sur [developer.orange.com](https://developer.orange.com) → récupérer `CLIENT_ID`/`CLIENT_SECRET`, créer `MERCHANT_KEY`.
+2. `.env` :
+
+```
+PAYMENT_PROVIDER=orange
+ORANGE_MONEY_CLIENT_ID=xxx
+ORANGE_MONEY_CLIENT_SECRET=xxx
+ORANGE_MONEY_BASE_URL=https://api.orange.com
+ORANGE_MONEY_MERCHANT_KEY=xxx
+ORANGE_MONEY_RETURN_URL=https://votre-domaine/retour
+ORANGE_MONEY_CANCEL_URL=https://votre-domaine/annulation
+ORANGE_MONEY_NOTIF_URL=https://votre-domaine/api/v1/payments/webhook/orange/
+PAYMENT_TIMEOUT_SECONDS=15
+```
+
+3. Flow : `POST /oauth/v3/token` → `POST /orange-money-webpay/cm/v1/webpayment` (`merchant_key`, `order_id=reference`, `amount`, `currency`, `return/cancel/notif_url`) → `pay_token`/`payment_url`.
+4. Tester avec numéro sandbox Orange.
+
+---
+
+## 15. MTN MoMo Sandbox
+
+1. [momodeveloper.mtn.com](https://momodeveloper.mtn.com) → `SUBSCRIPTION_KEY`, créer `API_USER`/`API_KEY` (sandbox).
+2. `.env` :
+
+```
+PAYMENT_PROVIDER=mtn
+MTN_MOMO_SUBSCRIPTION_KEY=xxx
+MTN_MOMO_API_USER=xxx
+MTN_MOMO_API_KEY=xxx
+MTN_MOMO_BASE_URL=https://sandbox.momodeveloper.mtn.com
+MTN_MOMO_TARGET_ENVIRONMENT=sandbox
+MTN_MOMO_CALLBACK_URL=https://votre-domaine/api/v1/payments/webhook/mtn/
+```
+
+3. Flow : `POST /collection/token/` (Basic `API_USER:API_KEY`) → `POST /collection/v1_0/requesttopay` (`X-Reference-Id: uuid`, `amount`, `currency`, `externalId=reference`, `payer: {partyIdType: MSISDN, partyId}`) → `202`.
+4. Statut : `GET /collection/v1_0/requesttopay/{id}` → `SUCCESSFUL`/`FAILED`/`PENDING` (mappé `COMPLETED`/`FAILED`).
+
+---
+
+## 16. Passage production
+
+- `DEBUG=False`, `SECRET_KEY` 50+ chars, `ALLOWED_HOSTS=votre-domaine`, `DB_HOST` → PostgreSQL, `SECURE_SSL_REDIRECT=True`, `HSTS_SECONDS=31536000`, `REFRESH_COOKIE_SECURE=True`, `SESSION_COOKIE_SECURE=True`.
+- `PAYMENT_PROVIDER=orange` ou `mtn` + vraies creds, `ORANGE_MONEY_BASE_URL` / `MTN_MOMO_BASE_URL` prod, `MTN_MOMO_TARGET_ENVIRONMENT=production`.
+- `EMAIL_BACKEND=smtp` + `EMAIL_HOST/PORT/USER/PASSWORD`, `DEFAULT_FROM_EMAIL`.
+- `SEED_DEMO_DATA` non défini (ou `False`).
+- `python manage.py collectstatic --noinput && python manage.py migrate && python manage.py check --deploy && pip audit`
+
+---
+
+## 17. Webhooks
+
+- **Orange** : `POST https://domaine/api/v1/payments/webhook/orange/` body `{reference/order_id, transaction_id/pay_token, status}` → map `SUCCESS→COMPLETED`, idempotent (ne met à jour que si `PENDING`), notif `get_or_create`.
+- **MTN** : `POST https://domaine/api/v1/payments/webhook/mtn/` body `{reference/externalId, transaction_id/referenceId, status}` (`SUCCESSFUL`→`COMPLETED`).
+- **Générique** : `POST /api/v1/payments/webhook/` (AllowAny, vérif signature à surcharger `verify_webhook`).
+- **Vérif manuelle** : `GET /api/v1/payments/<reference>/status/` (IsAuthenticated, owner only, interroge provider, maj DB + notifs admin si `COMPLETED`).
+- Configurer `ORANGE_MONEY_NOTIF_URL` / `MTN_MOMO_CALLBACK_URL` vers ces endpoints en HTTPS.
+
+---
+
+## 18. RBAC
+
+| Rôle | Back-office | Permissions principales |
+|---|---|---|
+| `super_admin` | Oui | Tout (users, rôles, catalogue, analytics, admin) |
+| `admin` | Oui | Users non-privilégiés, catalogue, souscriptions, tickets, analytics |
+| `product_manager` | Oui | Catalogue, produits, services, offres, sources, qualité |
+| `editor` | Oui | Actualités, promotions, médias |
+| `customer` | Non | Portail client (`/mon-compte`) |
+| Anonyme | Non | Portail public |
+
+Matrice code : `apps.core.permissions` + `features/auth/permissions.ts`. `publish`/`destroy` produit réservés `IsAdminUser`. Switch `Portail ↔ Back-office` (`PortalBackofficeSwitch`) visible si `user.can_access_backoffice`, backend reste source de vérité (403 sinon). Doc : `docs/RBAC.md`.
+
+---
+
+## 19. Tests
+
+```powershell
+# Backend SQLite (par défaut)
+cd backend; python manage.py test --verbosity 2
+
+# Backend PostgreSQL
+$env:DB_NAME="camtel"; $env:DB_USER="camtel"; $env:DB_PASSWORD="camtel"; $env:DB_HOST="localhost"; python manage.py migrate; python manage.py test --verbosity 2
+
+# Frontend
+cd frontend/camtel/frontend; npm run test -- --run; npm run lint; npm run build; npx tsc -p tsconfig.json --noEmit
+```
+
+Checks : `python manage.py check`, `python manage.py check --deploy` (prod). E2E : `npm run test:e2e` (Playwright, `playwright.config.ts`).
+
+---
+
+## 20. Troubleshooting
+
+| Problème | Solution |
+|---|---|
+| `Database connection failed` | Vérifier `DB_HOST`/`PORT` ou SQLite `backend/db.sqlite3` writable |
+| `CORS error` | `CORS_ALLOWED_ORIGINS=http://localhost:5173` dans `.env` |
+| `Missing environment variables` | Copier `.env.example` → `.env` |
+| `Migration errors` | `python manage.py migrate --run-syncdb` |
+| `Catalogue vide` | `python manage.py seed_camtel_data` |
+| `VITE_API_BASE_URL` 404 | `VITE_API_BASE_URL=/api/v1` (proxy Vite → :8000) |
+| `401 Unauthorized` | Refresh token expiré → se reconnecter (`/admin/login`) |
+| `Port already in use` | Changer `PORT` ou `docker compose down` |
+| `Images cassées` | Vérifier `MEDIA_URL=/media/` + proxy Vite `/media → :8000` + `python manage.py attach_official_images` |
+| `Paiement 400 Prix sur demande` | Produit `pricing_type=QUOTE` → CTA `Devis` normal (pas `Payer`) |
+| `Payment provider non configuré` | Vérifier `PAYMENT_PROVIDER` ∈ `mock,orange,mtn` et creds correspondantes |
+
+---
+
+## Branding / Logo
+
+Source unique `frontend/camtel/frontend/public/logo-new.png` (PNG 1254×1254 fond blanc, pastille `rounded-xl bg-white p-1 ring-1`) :
+
+- Header portail + Back-office (`Logo.tsx:20` `BRAND_LOGO_SRC='/logo-new.png?v=20260830a1'`)
+- Favicon `/favicon.png` (`index.html:5`), `document.title` `CAMTEL-OnePortal` (public) / `CAMTEL-Back Office` (admin)
+
+Remplacer :
+
+```powershell
+Copy-Item nouveau-logo.png frontend/camtel/frontend/public/logo-new.png -Force
+python scripts/make_favicon.py
+# incrémenter ?v= dans src/shared/components/Logo.tsx
+```
+
+Legacy dans `public/legacy-logos/`.
 
 ---
 
@@ -167,177 +447,17 @@ npm run build
 
 | Document | Contenu |
 |---|---|
-| [docs/backend-setup.md](docs/backend-setup.md) | Configuration backend dÃ©taillÃ©e |
-| [docs/frontend-setup.md](docs/frontend-setup.md) | Configuration frontend |
-| [docs/devops.md](docs/devops.md) | Docker, CI/CD, backup, monitoring |
-| [docs/partner-api.md](docs/partner-api.md) | API partenaire (clÃ©s, scopes, rate limit) |
-| [docs/oneportal-ai.md](docs/oneportal-ai.md) | Assistant OnePortal AI (chatbot, LLM, paramÃ¨tres) |
-| [docs/disaster-recovery.md](docs/disaster-recovery.md) | Plan RTO/RPO |
-| [docs/roadmap.md](docs/roadmap.md) | Roadmap technique |
+| `docs/backend-setup.md` | Backend détaillé |
+| `docs/frontend-setup.md` | Frontend |
+| `docs/devops.md` | Docker, CI/CD, backup |
+| `docs/partner-api.md` | API partenaire `X-API-Key` |
+| `docs/oneportal-ai.md` | Chatbot LLM |
+| `docs/RBAC.md` | Matrice RBAC |
+| `docs/disaster-recovery.md` | RTO/RPO |
+| `docs/roadmap.md` | Roadmap |
 
 ---
 
-## Variables d'environnement
+## Licence
 
-Copier `.env.example` vers `.env` et adapter les valeurs.
-
-Variables clÃ©s (dÃ©tail complet dans [backend-setup.md](docs/backend-setup.md)) :
-
-| Variable | RÃ´le | DÃ©faut |
-|---|---|---|
-| `SECRET_KEY` | ClÃ© Django â€” **obligatoire en production** (refus de dÃ©marrer) | `DEV ONLY` |
-| `DJANGO_SETTINGS_MODULE` | `config.settings.dev` ou `config.settings.prod` | `config.settings.dev` |
-| `SEED_DEMO_DATA` | Active le seed demo (jamais auto hors-dev) | `True` (dev) / `False` (prod) |
-| `JWT_ACCESS_LIFETIME_MINUTES` | DurÃ©e de vie du token access | `30` |
-| `JWT_REFRESH_LIFETIME_DAYS` | DurÃ©e de vie du refresh (rÃ©vocable au logout) | `7` |
-| `THROTTLE_*` | Rate limiting (login, register, chatbot, search, partner...) | selon endpoint |
-| `DB_*` | Connexion PostgreSQL (SQLite si `DB_HOST` vide) | â€” |
-
----
-
-## Commandes utiles
-
-```powershell
-# CrÃ©er une clÃ© API partenaire
-python manage.py create_partner_key --name "Mon partenaire"
-
-# Seed demo (dev) â€” hors dev, exiger SEED_DEMO_DATA=true ou --force
-python manage.py seed_data
-
-# RÃ©initialiser sÃ©quences PostgreSQL aprÃ¨s migration
-python manage.py reset_pg_sequences
-
-# Sauvegarde (Linux/macOS ou Git Bash)
-./scripts/backup.sh
-```
-
-
----
-
-## Chargement du catalogue officiel
-
-Les donnees CAMTEL (services, segments, produits, sources) sont versionnees dans `data/camtel_catalog/`. Pour charger le catalogue complet :
-
-```powershell
-cd backend
-python manage.py seed_camtel_data
-```
-
-Cette commande est **idempotente** : elle peut etre relancee sans creer de doublons. Elle charge dans l'ordre :
-1. Services (Fixes, Mobiles, Transport, Data Center)
-2. Segments (Particulier, Professionnel, Entreprise, Administration)
-3. Produits avec specifications et tarification
-4. Sources de donnees
-5. Images officielles (`python manage.py attach_official_images`)
-
-Pour valider les donnees chargees :
-
-```powershell
-python manage.py validate_camtel_data
-```
-
-### Import depuis un nouveau PDF officiel
-
-Quand un nouveau catalogue PDF CAMTEL est fourni (produits + images), le pipeline complet est :
-
-```powershell
-# 1. Extraire le TEXTE (page par page) et les IMAGES embarquees du PDF
-python scripts/extract_official_pdf.py chemin/vers/catalogue.pdf
-
-# 2. Construire le snapshot data/camtel_catalog/<date>/ (offers.json, services.json,
-#    sources.json...) a partir du texte extrait, puis le valider
-python manage.py seed_camtel_data --snapshot <date>
-python manage.py validate_camtel_data
-
-# 3. Rattacher les images extraites (backend/media/products/pdf-import/) aux produits
-python manage.py attach_official_images
-```
-
-Options utiles : `--images-only` (images sans texte), `--min-size 64` (taille minimale
-en px pour garder une image — les icones/puces sont ecartees). Le script convertit les
-formats non web (DIB...) en JPEG et ecrit un rapport `[OK] Texte` / `[OK] Images`.
-
-> Regle #52 : aucune donnee commerciale n'est inventee — seules les valeurs lues dans
-> le PDF alimentent le snapshot ; les champs manquants restent `REQUIRES_VALIDATION`.
-
----
-
-## Creation d'un Superadmin
-
-```powershell
-cd backend
-python manage.py createsuperuser
-```
-
-Ou via le seed demo (dev uniquement) : le compte `superadmin` / `CamtelAdmin2026!` est cree automatiquement par `seed_data`.
-
----
-
-
-
-## Branding / Logo
-
-Le logo est **centralise en une seule source** (`frontend/camtel/frontend/public/logo-new.png`) et alimente automatiquement :
-
-- Header du portail public
-- Sidebar + header du Back Office
-- Pages de connexion / inscription
-- Favicon (icone d onglet)
-
-Pour **remplacer le logo** (nouvelle version officielle) :
-
-```powershell
-# 1. Copier le nouveau logo dans public/ (remplace logo-new.png)
-Copy-Item chemin/vers/nouveau-logo.png frontend/camtel/frontend/public/logo-new.png -Force
-
-# 2. Regenerer le favicon 64x64 depuis le nouveau logo
-python scripts/make_favicon.py
-
-# 3. Le query string ?v= dans Logo.tsx force le navigateur a recharger :
-#    il suffit d incrementer la valeur (ex: ?v=20260830a2) dans
-#    frontend/camtel/frontend/src/shared/components/Logo.tsx
-```
-
-L`ancien logo est conserve dans `frontend/camtel/frontend/public/legacy-logos/` (logo-icon.svg, logo-full.svg, logo-full-dark.svg, favicon.svg) au cas ou. Le logo officiel est genere en PNG 1254x1254 avec fond blanc et s affiche dans une pastille blanche arrondie, lisible aussi bien sur fond clair (portail) que sur fond sombre (Back Office, pages auth).
-
-> Regle #26/#27 du cahier des charges : source unique, remplaçable sans toucher au code metier, stable a chaque rafraichissement.
-
-## Troubleshooting
-
-| Probleme | Solution |
-|---|---|
-| `Database connection failed` | Verifier `DB_HOST`/`DB_PORT` ou que SQLite est accessible |
-| `CORS error` en frontend | Verifier `CORS_ALLOWED_ORIGINS` dans `.env` (inclure `http://localhost:5173`) |
-| `Missing environment variables` | Copier `.env.example` vers `.env` et remplir les valeurs |
-| `Migration errors` | `python manage.py migrate --run-syncdb` puis relancer |
-| `Catalogue vide` | Lancer `python manage.py seed_camtel_data` |
-| `Frontend API URL` | Verifier `VITE_API_URL` dans `frontend/camtel/frontend/.env` |
-| `401 Unauthorized` | Rafraichir la page (token expire) ou se reconnecter |
-| `Port already in use` | Changer `PORT` ou arreter le processus sur le port 8000/5173 |
-
----
-
-## RBAC - Roles et permissions
-
-| Role | Acces Back Office | Permissions principales |
-|---|---|---|
-| `super_admin` | OUI | Toutes (gestion utilisateurs, roles, catalogue, analytics, admin) |
-| `admin` | OUI | Gestion utilisateurs (non-privilegies), catalogue, souscriptions, analytics |
-| `product_manager` | OUI | Catalogue, produits, services, promotions |
-| `editor` | OUI | Actualites, medias, redactionnel |
-| `customer` | NON | Portail client uniquement |
-| Anonymous | NON | Portail public uniquement |
-
-Voir [docs/RBAC.md](docs/RBAC.md) pour la matrice complete.
-
----
-
-## Switch Portail / Back Office
-
-Tout utilisateur autorise au Back Office (super_admin, admin, product_manager, editor) dispose d'un bouton de bascule **Portail <-> Back Office** visible :
-
-- Dans le header du Back Office (`/admin`)
-- Dans la sidebar (desktop) et sous le contenu (mobile)
-- Dans le header du portail public
-
-La bascule **conserve la session** : aucune reconnexion n'est requise. Un client (`customer`) ne voit jamais ce bouton, et le backend protege chaque endpoint de toute facon (403).
+Propriétaire CAMTEL. Usage interne.

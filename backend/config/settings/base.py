@@ -362,6 +362,22 @@ OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
 # Services V2 — abstractions sans faux connecteurs externes
 # ---------------------------------------------------------------------------
 PAYMENT_PROVIDER = os.environ.get('PAYMENT_PROVIDER', 'mock')
+# Orange Money
+ORANGE_MONEY_CLIENT_ID = os.environ.get('ORANGE_MONEY_CLIENT_ID', '')
+ORANGE_MONEY_CLIENT_SECRET = os.environ.get('ORANGE_MONEY_CLIENT_SECRET', '')
+ORANGE_MONEY_BASE_URL = os.environ.get('ORANGE_MONEY_BASE_URL', 'https://api.orange.com')
+ORANGE_MONEY_MERCHANT_KEY = os.environ.get('ORANGE_MONEY_MERCHANT_KEY', '')
+ORANGE_MONEY_RETURN_URL = os.environ.get('ORANGE_MONEY_RETURN_URL', '')
+ORANGE_MONEY_CANCEL_URL = os.environ.get('ORANGE_MONEY_CANCEL_URL', '')
+ORANGE_MONEY_NOTIF_URL = os.environ.get('ORANGE_MONEY_NOTIF_URL', '')
+# MTN MoMo
+MTN_MOMO_SUBSCRIPTION_KEY = os.environ.get('MTN_MOMO_SUBSCRIPTION_KEY', '')
+MTN_MOMO_API_USER = os.environ.get('MTN_MOMO_API_USER', '')
+MTN_MOMO_API_KEY = os.environ.get('MTN_MOMO_API_KEY', '')
+MTN_MOMO_BASE_URL = os.environ.get('MTN_MOMO_BASE_URL', 'https://sandbox.momodeveloper.mtn.com')
+MTN_MOMO_TARGET_ENVIRONMENT = os.environ.get('MTN_MOMO_TARGET_ENVIRONMENT', 'sandbox')
+MTN_MOMO_CALLBACK_URL = os.environ.get('MTN_MOMO_CALLBACK_URL', '')
+PAYMENT_TIMEOUT_SECONDS = int(os.environ.get('PAYMENT_TIMEOUT_SECONDS', '15'))
 ELIGIBILITY_PROVIDER = os.environ.get('ELIGIBILITY_PROVIDER', 'mock')
 # Data freshness (#34) : une offre OFFICIAL non reverifiee depuis N jours est STALE.
 DATA_FRESHNESS_DAYS = int(os.environ.get('DATA_FRESHNESS_DAYS', '30'))

@@ -84,6 +84,7 @@ export const paymentsApi = {
   initiate: (payload: {
     product_id: number;
     idempotency_key?: string;
+    provider?: string;
   }) => httpClient.post<PaymentResult>('/payments/initiate/', payload).then((r) => r.data),
 
   /**

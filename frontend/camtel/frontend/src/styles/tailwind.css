@@ -10,8 +10,15 @@
   }
   body {
     @apply bg-neutral-50 text-neutral-900 font-sans antialiased transition-colors duration-150;
-    @apply dark:bg-neutral-950 dark:text-neutral-100;
+    @apply dark:bg-[#0a1020] dark:text-slate-100;
   }
+  /* Surfaces premium dark — cartes, headers, modals */
+  .dark .bg-white { @apply !bg-[#0f172a]; }
+  .dark .bg-neutral-50 { @apply !bg-[#0a1020]; }
+  .dark .bg-neutral-950 { @apply !bg-[#0a1020]; }
+  .dark .bg-neutral-900 { @apply !bg-[#0f1a33]; }
+  .dark .border-neutral-200 { @apply !border-[#1e2a4a]; }
+  .dark .border-neutral-800 { @apply !border-[#1e2a4a]; }
   :focus-visible {
     @apply outline-none ring-2 ring-accent-500 ring-offset-2 ring-offset-white dark:ring-offset-neutral-950;
   }
@@ -32,5 +39,18 @@
   .skip-link {
     @apply sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200];
     @apply focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white;
+  }
+  /* Dark premium — cartes avec glow subtil */
+  .dark .ds-card,
+  .dark .rounded-xl.border {
+    @apply !border-[#1e2a4a] !bg-[#0f172a];
+  }
+  .dark .ds-card:hover,
+  .dark .rounded-xl.border:hover {
+    @apply !border-primary/30 shadow-[0_0_20px_rgba(59,130,246,0.15)];
+  }
+  /* Hero dark premium */
+  .dark .bg-gradient-to-br.from-primary-900 {
+    background-image: linear-gradient(to bottom right, #001a47, #0f2a6b, #1e3a8a) !important;
   }
 }
